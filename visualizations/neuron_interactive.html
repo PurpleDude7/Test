@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How a Neuron Works — Interactive Visualization</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e2e4e9;
+    --text-dim: #8b8fa3;
+    --accent: #6c8cff;
+    --accent2: #ff6c8c;
+    --positive: #4ecdc4;
+    --negative: #ff6b6b;
+    --orange: #ffa94d;
+    --purple: #b197fc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 28px; margin-bottom: 8px; color: var(--accent); }
+  h2 { font-size: 20px; margin: 32px 0 16px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin: 16px 0 8px; color: var(--text-dim); }
+  p { color: var(--text-dim); margin-bottom: 12px; font-size: 14px; }
+  .subtitle { color: var(--text-dim); margin-bottom: 32px; font-size: 14px; }
+
+  .neuron-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin: 24px 0;
+  }
+  canvas { display: block; margin: 0 auto; }
+
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .control-group {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .control-group label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .control-group label span.val {
+    color: var(--accent);
+    font-weight: 600;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  input[type="range"] {
+    width: 100%;
+    height: 6px;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+    margin-bottom: 12px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .output-panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .output-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .output-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 4px; }
+  .output-card .value { font-size: 28px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .output-card .formula { font-size: 11px; color: var(--text-dim); margin-top: 4px; font-family: 'SF Mono', monospace; }
+  .val-positive { color: var(--positive); }
+  .val-negative { color: var(--negative); }
+  .val-accent { color: var(--accent); }
+  .val-orange { color: var(--orange); }
+  .val-purple { color: var(--purple); }
+
+  .graph-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .graph-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .graph-box h3 { margin-top: 0; }
+
+  .step-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 24px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .step-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    text-align: center;
+    min-width: 100px;
+    transition: all 0.3s;
+  }
+  .step-box.active { border-color: var(--accent); box-shadow: 0 0 12px rgba(108,140,255,0.2); }
+  .step-box .step-num { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+  .step-box .step-val { font-size: 16px; font-weight: 700; margin-top: 4px; font-family: 'SF Mono', monospace; }
+  .step-box .step-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .arrow { color: var(--text-dim); font-size: 20px; }
+
+  @media (max-width: 768px) {
+    .graph-container { grid-template-columns: 1fr; }
+    .controls { grid-template-columns: 1fr; }
+    .step-flow { flex-direction: column; }
+    .arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<h1>How a Neuron Works</h1>
+<p class="subtitle">Interactive visualization — adjust the sliders to see how inputs, weights, bias, and activation functions work together.</p>
+
+<!-- STEP FLOW -->
+<h2>Signal Flow Through a Neuron</h2>
+<div class="step-flow" id="stepFlow">
+  <div class="step-box active" id="step-inputs"><div class="step-num">Step 1</div><div class="step-val" id="sf-inputs">—</div><div class="step-label">Inputs (x)</div></div>
+  <div class="arrow">&#x2192;</div>
+  <div class="step-box" id="step-weights"><div class="step-num">Step 2</div><div class="step-val" id="sf-weights">—</div><div class="step-label">Weights (w)</div></div>
+  <div class="arrow">&#x2192;</div>
+  <div class="step-box" id="step-sum"><div class="step-num">Step 3</div><div class="step-val" id="sf-sum">—</div><div class="step-label">Weighted Sum</div></div>
+  <div class="arrow">&#x2192;</div>
+  <div class="step-box" id="step-bias"><div class="step-num">Step 4</div><div class="step-val" id="sf-bias">—</div><div class="step-label">+ Bias = z</div></div>
+  <div class="arrow">&#x2192;</div>
+  <div class="step-box" id="step-act"><div class="step-num">Step 5</div><div class="step-val" id="sf-act">—</div><div class="step-label">Activation</div></div>
+  <div class="arrow">&#x2192;</div>
+  <div class="step-box" id="step-output"><div class="step-num">Step 6</div><div class="step-val" id="sf-output">—</div><div class="step-label">Output (y)</div></div>
+</div>
+
+<!-- CONTROLS -->
+<h2>Adjust Parameters</h2>
+<div class="controls">
+  <div class="control-group">
+    <h3>Inputs</h3>
+    <label>x1 <span class="val" id="v-x1">0.50</span></label>
+    <input type="range" id="x1" min="-1" max="1" step="0.01" value="0.5">
+    <label>x2 <span class="val" id="v-x2">0.30</span></label>
+    <input type="range" id="x2" min="-1" max="1" step="0.01" value="0.3">
+    <label>x3 <span class="val" id="v-x3">0.80</span></label>
+    <input type="range" id="x3" min="-1" max="1" step="0.01" value="0.8">
+  </div>
+  <div class="control-group">
+    <h3>Weights</h3>
+    <label>w1 <span class="val" id="v-w1">0.40</span></label>
+    <input type="range" id="w1" min="-2" max="2" step="0.01" value="0.4">
+    <label>w2 <span class="val" id="v-w2">0.60</span></label>
+    <input type="range" id="w2" min="-2" max="2" step="0.01" value="0.6">
+    <label>w3 <span class="val" id="v-w3">0.20</span></label>
+    <input type="range" id="w3" min="-2" max="2" step="0.01" value="0.2">
+  </div>
+  <div class="control-group">
+    <h3>Bias &amp; Activation</h3>
+    <label>Bias (b) <span class="val" id="v-bias">0.10</span></label>
+    <input type="range" id="bias" min="-2" max="2" step="0.01" value="0.1">
+    <label>Activation Function</label>
+    <select id="activation">
+      <option value="sigmoid">Sigmoid — 1/(1+e^-z)</option>
+      <option value="relu" selected>ReLU — max(0, z)</option>
+      <option value="tanh">Tanh — (e^z - e^-z)/(e^z + e^-z)</option>
+      <option value="leaky_relu">Leaky ReLU — max(0.01z, z)</option>
+      <option value="linear">Linear (no activation)</option>
+    </select>
+  </div>
+</div>
+
+<!-- OUTPUT CARDS -->
+<h2>Computation Results</h2>
+<div class="output-panel">
+  <div class="output-card">
+    <div class="label">Weighted Sum (before bias)</div>
+    <div class="value val-orange" id="out-wsum">0.00</div>
+    <div class="formula">w1*x1 + w2*x2 + w3*x3</div>
+  </div>
+  <div class="output-card">
+    <div class="label">z (with bias)</div>
+    <div class="value val-purple" id="out-z">0.00</div>
+    <div class="formula">weighted_sum + b</div>
+  </div>
+  <div class="output-card">
+    <div class="label">Output y = f(z)</div>
+    <div class="value val-positive" id="out-y">0.00</div>
+    <div class="formula" id="out-formula">ReLU(z)</div>
+  </div>
+  <div class="output-card">
+    <div class="label">Derivative f'(z)</div>
+    <div class="value val-accent" id="out-deriv">0.00</div>
+    <div class="formula">Used in backprop</div>
+  </div>
+</div>
+
+<!-- NEURON DIAGRAM -->
+<h2>Neuron Diagram</h2>
+<div class="neuron-container">
+  <canvas id="neuronCanvas" width="900" height="360"></canvas>
+</div>
+
+<!-- ACTIVATION GRAPHS -->
+<h2>Activation Functions</h2>
+<div class="graph-container">
+  <div class="graph-box">
+    <h3>Activation Function f(z)</h3>
+    <canvas id="activationGraph" width="420" height="280"></canvas>
+  </div>
+  <div class="graph-box">
+    <h3>Derivative f'(z) — Used in Backprop</h3>
+    <canvas id="derivativeGraph" width="420" height="280"></canvas>
+  </div>
+</div>
+
+<!-- WEIGHT CONTRIBUTION BAR -->
+<h2>Weight Contributions</h2>
+<div class="neuron-container">
+  <canvas id="barChart" width="900" height="200"></canvas>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const sliders = ['x1','x2','x3','w1','w2','w3','bias'];
+const actSelect = $('activation');
+
+function sigmoid(z) { return 1 / (1 + Math.exp(-z)); }
+function sigmoidDeriv(z) { const s = sigmoid(z); return s * (1 - s); }
+function relu(z) { return Math.max(0, z); }
+function reluDeriv(z) { return z > 0 ? 1 : 0; }
+function leakyRelu(z) { return z > 0 ? z : 0.01 * z; }
+function leakyReluDeriv(z) { return z > 0 ? 1 : 0.01; }
+function tanhAct(z) { return Math.tanh(z); }
+function tanhDeriv(z) { const t = Math.tanh(z); return 1 - t * t; }
+function linear(z) { return z; }
+function linearDeriv() { return 1; }
+
+function getActivation(name) {
+  switch(name) {
+    case 'sigmoid': return { fn: sigmoid, deriv: sigmoidDeriv, label: 'Sigmoid' };
+    case 'relu': return { fn: relu, deriv: reluDeriv, label: 'ReLU' };
+    case 'tanh': return { fn: tanhAct, deriv: tanhDeriv, label: 'Tanh' };
+    case 'leaky_relu': return { fn: leakyRelu, deriv: leakyReluDeriv, label: 'Leaky ReLU' };
+    case 'linear': return { fn: linear, deriv: linearDeriv, label: 'Linear' };
+  }
+}
+
+function compute() {
+  const x = [+$('x1').value, +$('x2').value, +$('x3').value];
+  const w = [+$('w1').value, +$('w2').value, +$('w3').value];
+  const b = +$('bias').value;
+  const act = getActivation(actSelect.value);
+
+  const products = x.map((xi, i) => xi * w[i]);
+  const wsum = products.reduce((a, b) => a + b, 0);
+  const z = wsum + b;
+  const y = act.fn(z);
+  const dy = act.deriv(z);
+
+  sliders.forEach(id => {
+    const el = $(id);
+    $('v-' + id).textContent = parseFloat(el.value).toFixed(2);
+  });
+
+  $('sf-inputs').textContent = x.map(v => v.toFixed(2)).join(', ');
+  $('sf-weights').textContent = w.map(v => v.toFixed(2)).join(', ');
+  $('sf-sum').textContent = wsum.toFixed(3);
+  $('sf-bias').textContent = z.toFixed(3);
+  $('sf-act').textContent = act.label;
+  $('sf-output').textContent = y.toFixed(4);
+
+  $('out-wsum').textContent = wsum.toFixed(4);
+  $('out-z').textContent = z.toFixed(4);
+  $('out-y').textContent = y.toFixed(4);
+  $('out-deriv').textContent = dy.toFixed(4);
+  $('out-formula').textContent = act.label + '(z)';
+
+  const yEl = $('out-y');
+  yEl.className = 'value ' + (y >= 0 ? 'val-positive' : 'val-negative');
+
+  drawNeuron(x, w, b, z, y, products, act.label);
+  drawActivationGraph(act, z, y);
+  drawDerivativeGraph(act, z, dy);
+  drawBarChart(x, w, products, b);
+  animateSteps();
+}
+
+function animateSteps() {
+  const steps = ['step-inputs','step-weights','step-sum','step-bias','step-act','step-output'];
+  steps.forEach((id, i) => {
+    setTimeout(() => {
+      steps.forEach(s => $(s).classList.remove('active'));
+      $(id).classList.add('active');
+    }, i * 200);
+  });
+}
+
+function drawNeuron(x, w, b, z, y, products, actLabel) {
+  const canvas = $('neuronCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const inputX = 80, neuronX = W/2, outputX = W - 80;
+  const neuronY = H/2;
+  const inputPositions = [H*0.2, H*0.5, H*0.8];
+
+  // connections
+  for (let i = 0; i < 3; i++) {
+    const weight = w[i];
+    const alpha = Math.min(Math.abs(weight), 1);
+    ctx.beginPath();
+    ctx.moveTo(inputX + 30, inputPositions[i]);
+    ctx.lineTo(neuronX - 50, neuronY);
+    ctx.strokeStyle = weight >= 0
+      ? `rgba(78,205,196,${0.3 + alpha * 0.7})`
+      : `rgba(255,107,107,${0.3 + alpha * 0.7})`;
+    ctx.lineWidth = 1 + Math.abs(weight) * 2.5;
+    ctx.stroke();
+
+    // weight label
+    const mx = (inputX + 30 + neuronX - 50) / 2;
+    const my = (inputPositions[i] + neuronY) / 2;
+    ctx.fillStyle = '#1a1d27';
+    ctx.fillRect(mx - 24, my - 10, 48, 20);
+    ctx.fillStyle = weight >= 0 ? '#4ecdc4' : '#ff6b6b';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('w' + (i+1) + '=' + weight.toFixed(2), mx, my + 4);
+  }
+
+  // input circles
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(inputX, inputPositions[i], 28, 0, Math.PI * 2);
+    ctx.fillStyle = var_surface();
+    ctx.fill();
+    ctx.strokeStyle = '#6c8cff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#e2e4e9';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('x' + (i+1), inputX, inputPositions[i] - 6);
+    ctx.fillStyle = '#6c8cff';
+    ctx.font = '12px monospace';
+    ctx.fillText(x[i].toFixed(2), inputX, inputPositions[i] + 10);
+  }
+
+  // neuron body
+  ctx.beginPath();
+  ctx.arc(neuronX, neuronY, 48, 0, Math.PI * 2);
+  const grad = ctx.createRadialGradient(neuronX, neuronY, 0, neuronX, neuronY, 48);
+  grad.addColorStop(0, '#2a2d3a');
+  grad.addColorStop(1, '#1a1d27');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = '#b197fc';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = '#b197fc';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Σ + b', neuronX, neuronY - 10);
+  ctx.fillStyle = '#ffa94d';
+  ctx.font = '13px monospace';
+  ctx.fillText('z=' + z.toFixed(3), neuronX, neuronY + 8);
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('b=' + b.toFixed(2), neuronX, neuronY + 24);
+
+  // activation box
+  const actX = neuronX + 100;
+  ctx.beginPath();
+  ctx.moveTo(neuronX + 48, neuronY);
+  ctx.lineTo(actX - 30, neuronY);
+  ctx.strokeStyle = '#b197fc';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  roundRect(ctx, actX - 30, neuronY - 25, 90, 50, 8);
+  ctx.fillStyle = '#1a1d27';
+  ctx.fill();
+  ctx.strokeStyle = '#ffa94d';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#ffa94d';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(actLabel, actX + 15, neuronY + 4);
+
+  // output
+  ctx.beginPath();
+  ctx.moveTo(actX + 60, neuronY);
+  ctx.lineTo(outputX - 30, neuronY);
+  ctx.strokeStyle = '#4ecdc4';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(outputX, neuronY, 28, 0, Math.PI * 2);
+  ctx.fillStyle = var_surface();
+  ctx.fill();
+  ctx.strokeStyle = y >= 0 ? '#4ecdc4' : '#ff6b6b';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#e2e4e9';
+  ctx.font = 'bold 13px monospace';
+  ctx.fillText('y', outputX, neuronY - 6);
+  ctx.fillStyle = y >= 0 ? '#4ecdc4' : '#ff6b6b';
+  ctx.font = '12px monospace';
+  ctx.fillText(y.toFixed(4), outputX, neuronY + 10);
+}
+
+function var_surface() { return '#1a1d27'; }
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawActivationGraph(act, currentZ, currentY) {
+  const canvas = $('activationGraph');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = 40;
+  ctx.clearRect(0, 0, W, H);
+
+  const zMin = -6, zMax = 6;
+  const yMin = act.label === 'Linear' ? -6 : act.label === 'ReLU' || act.label === 'Leaky ReLU' ? -1 : -1.2;
+  const yMax = act.label === 'Linear' ? 6 : act.label === 'ReLU' || act.label === 'Leaky ReLU' ? 6 : 1.2;
+
+  function toCanvasX(z) { return pad + (z - zMin) / (zMax - zMin) * (W - 2 * pad); }
+  function toCanvasY(y) { return H - pad - (y - yMin) / (yMax - yMin) * (H - 2 * pad); }
+
+  // grid
+  ctx.strokeStyle = '#2a2d3a';
+  ctx.lineWidth = 1;
+  for (let z = Math.ceil(zMin); z <= zMax; z++) {
+    const cx = toCanvasX(z);
+    ctx.beginPath(); ctx.moveTo(cx, pad); ctx.lineTo(cx, H - pad); ctx.stroke();
+    ctx.fillStyle = '#8b8fa3'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(z, cx, H - pad + 14);
+  }
+
+  // axes
+  ctx.strokeStyle = '#4a4d5a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(pad, toCanvasY(0)); ctx.lineTo(W - pad, toCanvasY(0)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(toCanvasX(0), pad); ctx.lineTo(toCanvasX(0), H - pad); ctx.stroke();
+
+  // function curve
+  ctx.beginPath();
+  ctx.strokeStyle = '#ffa94d';
+  ctx.lineWidth = 2.5;
+  for (let px = pad; px <= W - pad; px++) {
+    const z = zMin + (px - pad) / (W - 2 * pad) * (zMax - zMin);
+    const y = act.fn(z);
+    const cy = toCanvasY(y);
+    if (px === pad) ctx.moveTo(px, cy); else ctx.lineTo(px, cy);
+  }
+  ctx.stroke();
+
+  // current point
+  const dotX = toCanvasX(Math.max(zMin, Math.min(zMax, currentZ)));
+  const dotY = toCanvasY(Math.max(yMin, Math.min(yMax, currentY)));
+  ctx.beginPath();
+  ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff6c8c';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // dashed lines
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = '#ff6c8c44';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(dotX, dotY); ctx.lineTo(dotX, toCanvasY(0)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(dotX, dotY); ctx.lineTo(toCanvasX(0), dotY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // labels
+  ctx.fillStyle = '#ff6c8c';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('z=' + currentZ.toFixed(2), dotX + 10, dotY - 8);
+  ctx.fillText('y=' + currentY.toFixed(4), dotX + 10, dotY + 14);
+}
+
+function drawDerivativeGraph(act, currentZ, currentDeriv) {
+  const canvas = $('derivativeGraph');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = 40;
+  ctx.clearRect(0, 0, W, H);
+
+  const zMin = -6, zMax = 6;
+  const yMin = -0.2, yMax = 1.2;
+
+  function toCanvasX(z) { return pad + (z - zMin) / (zMax - zMin) * (W - 2 * pad); }
+  function toCanvasY(y) { return H - pad - (y - yMin) / (yMax - yMin) * (H - 2 * pad); }
+
+  // grid
+  ctx.strokeStyle = '#2a2d3a'; ctx.lineWidth = 1;
+  for (let z = Math.ceil(zMin); z <= zMax; z++) {
+    const cx = toCanvasX(z);
+    ctx.beginPath(); ctx.moveTo(cx, pad); ctx.lineTo(cx, H - pad); ctx.stroke();
+    ctx.fillStyle = '#8b8fa3'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(z, cx, H - pad + 14);
+  }
+
+  // axes
+  ctx.strokeStyle = '#4a4d5a'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(pad, toCanvasY(0)); ctx.lineTo(W - pad, toCanvasY(0)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(toCanvasX(0), pad); ctx.lineTo(toCanvasX(0), H - pad); ctx.stroke();
+
+  // derivative curve
+  ctx.beginPath();
+  ctx.strokeStyle = '#6c8cff';
+  ctx.lineWidth = 2.5;
+  for (let px = pad; px <= W - pad; px++) {
+    const z = zMin + (px - pad) / (W - 2 * pad) * (zMax - zMin);
+    const d = act.deriv(z);
+    const cy = toCanvasY(Math.max(yMin, Math.min(yMax, d)));
+    if (px === pad) ctx.moveTo(px, cy); else ctx.lineTo(px, cy);
+  }
+  ctx.stroke();
+
+  // current point
+  const clampedDeriv = Math.max(yMin, Math.min(yMax, currentDeriv));
+  const dotX = toCanvasX(Math.max(zMin, Math.min(zMax, currentZ)));
+  const dotY = toCanvasY(clampedDeriv);
+  ctx.beginPath();
+  ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff6c8c';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ff6c8c';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText("f'(z)=" + currentDeriv.toFixed(4), dotX + 10, dotY - 4);
+}
+
+function drawBarChart(x, w, products, b) {
+  const canvas = $('barChart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const labels = ['x1*w1', 'x2*w2', 'x3*w3', 'bias'];
+  const values = [...products, b];
+  const maxAbs = Math.max(...values.map(Math.abs), 0.01);
+
+  const barW = 100, gap = 60;
+  const totalW = labels.length * barW + (labels.length - 1) * gap;
+  const startX = (W - totalW) / 2;
+  const zeroY = H / 2;
+
+  for (let i = 0; i < values.length; i++) {
+    const bx = startX + i * (barW + gap);
+    const val = values[i];
+    const barH = (val / maxAbs) * (H / 2 - 30);
+
+    const color = val >= 0 ? '#4ecdc4' : '#ff6b6b';
+    ctx.fillStyle = color + '33';
+    ctx.fillRect(bx, val >= 0 ? zeroY - barH : zeroY, barW, Math.abs(barH));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, val >= 0 ? zeroY - barH : zeroY, barW, Math.abs(barH));
+
+    ctx.fillStyle = color;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    const labelY = val >= 0 ? zeroY - barH - 8 : zeroY + Math.abs(barH) + 18;
+    ctx.fillText(val.toFixed(3), bx + barW / 2, labelY);
+
+    ctx.fillStyle = '#8b8fa3';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(labels[i], bx + barW / 2, H - 8);
+  }
+
+  // zero line
+  ctx.strokeStyle = '#4a4d5a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(startX - 20, zeroY);
+  ctx.lineTo(startX + totalW + 20, zeroY);
+  ctx.stroke();
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('0', startX - 24, zeroY + 4);
+}
+
+// event listeners
+sliders.forEach(id => $(id).addEventListener('input', compute));
+actSelect.addEventListener('change', compute);
+
+// initial render
+compute();
+</script>
+
+</body>
+</html>
