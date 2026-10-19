@@ -1,265 +1,93 @@
-# CLAUDE.md - AI Assistant Guide
+# CLAUDE.md
 
-This document provides comprehensive guidance for AI assistants working with this codebase.
+Guidance for AI assistants (and humans) working on **evalkit**, a Python library and CLI for
+evaluating LLM outputs. User-facing docs live in [README.md](README.md); this file covers
+how to work on the code.
 
-## Repository Overview
-
-**Status**: Fresh repository
-**Purpose**: General-purpose development project
-**Git Branch Strategy**: Feature branches with `claude/` prefix
-
-## Repository Structure
-
-```
-/
-├── .git/           # Git repository metadata
-└── CLAUDE.md       # This file - AI assistant guide
-```
-
-### Expected Structure (To Be Established)
-
-As the project grows, consider organizing with:
-```
-/
-├── src/            # Source code
-├── tests/          # Test files
-├── docs/           # Documentation
-├── config/         # Configuration files
-├── scripts/        # Utility scripts
-├── .github/        # GitHub workflows and templates
-└── package.json    # Project metadata (if Node.js/npm)
-```
-
-## Development Workflow
-
-### Git Workflow
-
-1. **Branch Naming Convention**
-   - Feature branches: `claude/claude-md-<session-id>`
-   - All branches MUST start with `claude/` prefix
-   - Never push directly to `main` or `master`
-
-2. **Commit Guidelines**
-   - Write clear, descriptive commit messages
-   - Use conventional commit format when possible:
-     - `feat:` - New feature
-     - `fix:` - Bug fix
-     - `docs:` - Documentation changes
-     - `refactor:` - Code refactoring
-     - `test:` - Adding tests
-     - `chore:` - Maintenance tasks
-
-3. **Push Strategy**
-   - Always use: `git push -u origin <branch-name>`
-   - Verify branch name starts with `claude/`
-   - Retry on network failures with exponential backoff (2s, 4s, 8s, 16s)
-   - Maximum 4 retry attempts
-
-### Code Quality Standards
-
-#### General Principles
-
-- **Simplicity First**: Prefer simple, readable solutions over clever ones
-- **Consistency**: Follow existing patterns in the codebase
-- **Documentation**: Comment complex logic and maintain up-to-date docs
-- **Testing**: Write tests for new features and bug fixes
-- **Security**: Never introduce common vulnerabilities (XSS, SQL injection, etc.)
-
-#### Before Committing
-
-- [ ] Code follows project style guidelines
-- [ ] Tests pass (if test suite exists)
-- [ ] No unused imports or variables
-- [ ] No hardcoded credentials or secrets
-- [ ] Documentation updated if needed
-- [ ] Code is properly formatted
-
-## AI Assistant Best Practices
-
-### Planning and Execution
-
-1. **Use TodoWrite Tool Frequently**
-   - Break down complex tasks into steps
-   - Track progress visibly for users
-   - Mark todos complete immediately after finishing
-   - Keep only one task as `in_progress` at a time
-
-2. **Research Before Implementing**
-   - Use Explore agent for understanding codebase structure
-   - Read existing code before making changes
-   - Understand context before proposing solutions
-
-3. **Parallel Tool Execution**
-   - Run independent operations in parallel
-   - Example: Multiple file reads, parallel git commands
-   - Sequential only when operations depend on each other
-
-### Communication Guidelines
-
-- **Concise**: Keep responses short and focused
-- **No Emojis**: Unless explicitly requested by user
-- **Professional**: Objective, technical, fact-based
-- **References**: Use `file_path:line_number` format for code references
-- **Progress**: Update user on significant steps
-
-### Tool Usage Priorities
-
-1. **File Operations**
-   - Read tool for viewing files (not `cat`)
-   - Edit tool for modifications (not `sed`)
-   - Write tool for new files (not `echo >`)
-
-2. **Search Operations**
-   - Glob for finding files by pattern
-   - Grep for searching file contents
-   - Task tool with Explore agent for complex searches
-
-3. **Avoid**
-   - Don't use bash `echo` for communication
-   - Don't use `find` when Glob is available
-   - Don't use `grep` command when Grep tool exists
-
-## Security Guidelines
-
-### What to Allow
-
-- Authorized security testing (with clear context)
-- Defensive security implementations
-- CTF challenges and educational contexts
-- Security research with proper authorization
-
-### What to Refuse
-
-- Destructive techniques without authorization
-- DoS attacks or mass targeting
-- Supply chain compromise attempts
-- Detection evasion for malicious purposes
-- Dual-use security tools without clear authorization context
-
-## Technology Stack
-
-### To Be Determined
-
-As the project develops, document:
-- Programming language(s)
-- Framework(s) and libraries
-- Build tools and task runners
-- Testing frameworks
-- Deployment targets
-- CI/CD pipelines
-
-## Common Tasks
-
-### Starting New Development
+## Quick reference
 
 ```bash
-# Ensure on correct branch
-git checkout -b claude/claude-md-<session-id>
-
-# Make changes
-# ... your development work ...
-
-# Stage and commit
-git add .
-git commit -m "feat: descriptive message"
-
-# Push with retry logic
-git push -u origin claude/claude-md-<session-id>
+pip install -e ".[dev]"            # editable install with pytest, ruff, mypy, stubs
+pytest                             # all tests; offline, takes about a second
+pytest tests/test_scorers.py -k judge   # a subset
+ruff check . && ruff format --check .   # lint + format check (ruff format . to fix)
+mypy                               # strict type check of src/ and tests/
+evalkit run examples/suite.yaml --provider fake --report out.html   # end-to-end smoke test
 ```
 
-### Adding Dependencies
+CI (`.github/workflows/ci.yml`) runs ruff, ruff format, and mypy on 3.11, then pytest and
+the CLI smoke test on 3.11, 3.12 and 3.13. Run all four commands above before committing.
 
-Document here as project type becomes clear:
-- Package manager commands
-- Dependency update procedures
-- Security scanning tools
+## Layout
 
-### Running Tests
+```text
+src/evalkit/
+  models.py        YAML schema: Suite, TestCase, Message, ScorerSpec, Defaults
+  loader.py        load_suite / parse_suite: YAML -> validated Suite (builds every scorer once)
+  runner.py        run_suite: thread-pooled execution, _ProviderPool for named providers
+  results.py       ScoreResult, CaseResult, RunResult (pass_rate, passed gate, summaries)
+  registry.py      generic name -> class Registry with entry-point discovery
+  errors.py        EvalkitError > SuiteError, RegistryError, ProviderError > NotSupportedError
+  providers/       base.py (Provider ABC, registry), fake.py, openai_compat.py, anthropic.py,
+                   _http.py (shared httpx client + retry/backoff)
+  scorers/         base.py (Scorer ABC, ScoreContext, registry), basic.py, embedding.py, judge.py
+  report/          json_report.py, html_report.py, write_report() picks format by extension
+  cli.py           argparse; exit codes 0 = gate passed, 1 = gate failed, 2 = usage/config error
+tests/             one module per area; conftest.py has the network guard and make_ctx fixture
+examples/suite.yaml  runs green offline with the fake provider; used by tests and CI
+```
 
-Document here once testing is established:
-- Test command
-- Coverage requirements
-- Pre-commit hooks
+## Conventions
 
-### Building/Deploying
+- **Python 3.11+.** Do not use 3.12-only syntax (PEP 695 `class Foo[T]`, `type X = ...`).
+  ruff targets py311 and mypy checks as 3.11.
+- **Full type hints, mypy strict.** No untyped defs; avoid `Any` except at YAML/JSON
+  boundaries. Use `# type: ignore[code]` only with a specific code.
+- **pydantic v2 for anything parsed from user input** (suites, scorer params, provider
+  configs) with `extra="forbid"` so typos fail at load time. Plain classes elsewhere.
+- **Errors:** raise subclasses of `EvalkitError`. The CLI turns them into exit code 2 with a
+  one-line message; never let a traceback reach CLI users for a config mistake.
+- **Failures are results.** Provider or scorer errors during a run are recorded on the
+  `CaseResult` (the case fails); they must not abort the run.
+- **Thread safety.** The runner calls `Provider.complete()` from a thread pool. Guard
+  shared mutable state (see `FakeProvider.calls`, `HTTPProvider.client`).
+- **Style:** ruff (line length 100), double quotes, docstrings on public classes and
+  functions. Comments explain why, not what. Keep dependencies minimal: core is httpx,
+  pydantic, PyYAML; anything heavy goes in an optional extra and is imported lazily.
+- **Security:** API keys come from environment variables (`api_key_env`); never put keys in
+  suites, tests, or fixtures. The HTML report must escape every user-controlled string.
 
-Document here as deployment is configured:
-- Build commands
-- Environment setup
-- Deployment process
+## Adding things
 
-## Project-Specific Conventions
+**A scorer:** subclass `Scorer` in `src/evalkit/scorers/`, declare options as pydantic
+fields, set `name`, implement `score(ctx) -> ScoreResult` (use `self.result(...)`, which
+clamps the score to [0, 1]), decorate with `@register_scorer("name")`, import it in
+`scorers/__init__.py`, add tests in `tests/test_scorers.py`, and add a row to the scorer
+table in README.md.
 
-### Code Style
+**A provider:** subclass `Provider` (or `HTTPProvider` for JSON-over-HTTPS APIs), define a
+`ProviderConfig` subclass as `Config`, implement `complete()` (and `embed()` if supported),
+register with `@register_provider("name")`, import it in `providers/__init__.py`, and test it
+with `httpx.MockTransport` in `tests/test_providers.py`. Update the README provider table.
 
-**To be established** - Document as conventions emerge:
-- Indentation (spaces vs tabs)
-- Line length limits
-- Naming conventions
-- File organization patterns
+## Testing rules
 
-### Architecture Patterns
+- **No network, ever.** `tests/conftest.py` patches `socket.connect` to raise. Use
+  `FakeProvider` for behaviour and `httpx.MockTransport` (passed as `transport=`) to test
+  HTTP providers' request and response handling. No real API keys in tests.
+- Use the `make_ctx` fixture to build a `ScoreContext` for scorer tests.
+- `filterwarnings = ["error"]`: warnings fail the suite; fix the cause rather than
+  filtering it.
+- Patch `evalkit.providers._http.time.sleep` in retry tests so they stay fast.
+- If you change `examples/suite.yaml`, keep it passing with `--provider fake`; tests and CI
+  depend on it.
+- Bug fixes come with a test that fails without the fix.
 
-**To be established** - Document as architecture develops:
-- Design patterns in use
-- Module organization
-- Dependency injection approach
-- State management
+## Git workflow
 
-### Testing Conventions
-
-**To be established** - Document as tests are added:
-- Test file naming
-- Test organization
-- Mocking strategies
-- Coverage expectations
-
-## Troubleshooting
-
-### Common Issues
-
-#### Git Push Fails with 403
-
-**Cause**: Branch name doesn't match required pattern
-**Solution**: Ensure branch starts with `claude/` and includes session ID
-
-#### Merge Conflicts
-
-**Approach**:
-1. Fetch latest from main branch
-2. Attempt merge or rebase
-3. Resolve conflicts carefully
-4. Test thoroughly after resolution
-
-#### Network Failures
-
-**Solution**: Implement retry logic with exponential backoff
-- Try operation
-- If fails, wait 2 seconds and retry
-- Double wait time for each subsequent retry (4s, 8s, 16s)
-- Maximum 4 attempts
-
-## Maintenance
-
-### Updating This Document
-
-This CLAUDE.md should be updated when:
-- New conventions are established
-- Technology stack is chosen/changed
-- Workflow processes are modified
-- Common issues are discovered
-- Project structure evolves
-
-Keep this document accurate and current to maximize AI assistant effectiveness.
-
-## Questions and Feedback
-
-For issues or suggestions about AI assistant behavior:
-- Report at: https://github.com/anthropics/claude-code/issues
-- Use `/help` command in Claude Code CLI
-
----
-
-**Last Updated**: 2025-11-18
-**Repository State**: Initialized (empty)
-**Next Steps**: Establish project structure and technology stack
+- Work on a branch prefixed `claude/`; never push directly to the default branch.
+- Conventional commit messages: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`.
+- Push with `git push -u origin <branch>`; on network errors retry up to 4 times with
+  exponential backoff (2s, 4s, 8s, 16s).
+- Before committing: tests, ruff, ruff format, and mypy all pass; no secrets; README and
+  this file updated if behaviour or conventions changed.
