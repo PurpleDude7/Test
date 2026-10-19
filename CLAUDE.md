@@ -26,13 +26,15 @@ src/evalkit/
   loader.py        load_suite / parse_suite: YAML -> validated Suite (builds every scorer once)
   runner.py        run_suite: thread-pooled execution, _ProviderPool for named providers
   results.py       ScoreResult, CaseResult, RunResult (pass_rate, passed gate, summaries)
+  compare.py       compare_runs / load_run: regressed/fixed/new/removed vs a baseline JSON report
   registry.py      generic name -> class Registry with entry-point discovery
   errors.py        EvalkitError > SuiteError, RegistryError, ProviderError > NotSupportedError
   providers/       base.py (Provider ABC, registry), fake.py, openai_compat.py, anthropic.py,
                    _http.py (shared httpx client + retry/backoff)
   scorers/         base.py (Scorer ABC, ScoreContext, registry), basic.py, embedding.py, judge.py
   report/          json_report.py, html_report.py, write_report() picks format by extension
-  cli.py           argparse; exit codes 0 = gate passed, 1 = gate failed, 2 = usage/config error
+  cli.py           argparse (run, compare, validate, list); exit codes 0 = gate passed,
+                   1 = below threshold or regressed vs --baseline, 2 = usage/config error
 tests/             one module per area; conftest.py has the network guard and make_ctx fixture
 examples/suite.yaml  runs green offline with the fake provider; used by tests and CI
 ```

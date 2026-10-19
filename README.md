@@ -9,6 +9,8 @@ command exits nonzero when the pass rate drops below a threshold, so it can gate
 - **Scorers:** `exact_match`, `contains`, `regex`, `embedding_similarity`, `llm_judge`.
   Add your own with one class.
 - **Reports:** machine-readable JSON and a self-contained HTML page (no JS, no CDN).
+- **Regression tracking:** diff a run against a saved baseline and fail on any case that
+  used to pass, even when the overall pass rate still clears the threshold.
 - **Small footprint:** `httpx`, `pydantic`, `PyYAML`. Python 3.11+, fully type-hinted.
 
 ## Quickstart
@@ -47,12 +49,16 @@ evalkit run SUITE [options]
   -t, --threshold FLOAT        pass-rate gate in [0, 1]; overrides the suite
   -j, --concurrency N          cases run in parallel (default 4)
       --tag TAG                only run cases with this tag; repeatable
+  -b, --baseline JSON          earlier JSON report; any regressed case fails the gate
   -q, --quiet                  print only the summary
+evalkit compare BASE.json CURRENT.json [-r PATH]
+                               diff two runs; exits 1 if any case regressed
 evalkit validate SUITE         check a suite without running it
 evalkit list                   show registered providers and scorers
 ```
 
-Exit codes: `0` gate passed, `1` pass rate below threshold, `2` usage or configuration error.
+Exit codes: `0` gate passed, `1` pass rate below threshold or a case regressed against
+`--baseline`, `2` usage or configuration error.
 
 ### Use it as a library
 
@@ -154,6 +160,29 @@ HTTP providers retry 408/409/429/5xx and connection errors with exponential back
 
 The job fails when the pass rate is below the suite's `threshold` (or `--threshold`).
 
+### Catching regressions
+
+A pass-rate gate can't see swaps: if one case breaks while another starts passing, the
+rate is unchanged. Save a JSON report from a known-good run (for example on `main`) and
+pass it as `--baseline`; the run then also fails if any case that passed there fails now.
+
+```bash
+evalkit run evals/suite.yaml --report baseline.json          # on main, keep as artifact
+evalkit run evals/suite.yaml --baseline baseline.json --report report.html
+```
+
+```text
+geography-and-format: 4/5 passed (80.0%), threshold 50.0% -> PASSED
+
+vs baseline: 100.0% -> 80.0% (-20.0 pts), 1 regressed, 0 fixed
+  REGRESSED  capital-france  - exact_match: expected 'Paris'
+```
+
+Each case is classified as regressed, fixed, new, removed, still passing, or still
+failing. The HTML report gains a "Compared with baseline" section and the JSON report a
+`comparison` object. `evalkit compare base.json current.json` does the same for two
+reports you already have, without calling any model.
+
 ## Architecture
 
 ```text
@@ -174,6 +203,7 @@ src/evalkit/
   loader.py        YAML -> Suite; builds every scorer once so bad params fail at load time
   runner.py        runs cases concurrently; provider/scorer errors fail the case, not the run
   results.py       ScoreResult, CaseResult, RunResult (pass rate, gate, summaries)
+  compare.py       compare_runs / load_run: case-level diff against a baseline report
   registry.py      name -> class registry with entry-point plugin discovery
   providers/       base.Provider ABC, fake, openai_compat, anthropic, shared HTTP retry logic
   scorers/         base.Scorer ABC, basic (exact/contains/regex), embedding, judge

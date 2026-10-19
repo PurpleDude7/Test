@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from html import escape
 
+from evalkit.compare import Change, Comparison
 from evalkit.results import CaseResult, RunResult
 
 _CSS = """
@@ -57,7 +58,15 @@ pre { background: var(--code); padding: 10px 12px; border-radius: 6px; white-spa
 .chip { font-size: 12px; padding: 1px 8px; border-radius: 6px; }
 .tag { font-size: 12px; color: var(--muted); }
 .label { font-size: 13px; color: var(--muted); }
+.neutral { color: var(--muted); background: var(--code); }
 """
+
+_CHANGE_STYLE = {
+    Change.REGRESSED: ("fail", "REGRESSED"),
+    Change.FIXED: ("pass", "FIXED"),
+    Change.NEW: ("neutral", "NEW"),
+    Change.REMOVED: ("neutral", "REMOVED"),
+}
 
 
 def _badge(passed: bool, yes: str = "PASS", no: str = "FAIL") -> str:
@@ -103,7 +112,38 @@ def _case(case: CaseResult) -> str:
 </details>"""
 
 
-def render_html(result: RunResult) -> str:
+def _score(value: float | None) -> str:
+    return "&ndash;" if value is None else f"{value:.2f}"
+
+
+def _comparison(comparison: Comparison | None) -> str:
+    if comparison is None:
+        return ""
+    delta = comparison.pass_rate_delta * 100
+    headline = (
+        f"{comparison.baseline_pass_rate:.1%} → {comparison.current_pass_rate:.1%} "
+        f"({delta:+.1f} pts) · {comparison.regressions} regressed · {comparison.fixes} fixed"
+    )
+    rows = "".join(
+        f"<tr><td><span class='badge {_CHANGE_STYLE[c.change][0]}'>"
+        f"{_CHANGE_STYLE[c.change][1]}</span></td><td>{escape(c.case_id)}</td>"
+        f"<td class='num'>{_score(c.baseline_score)} → {_score(c.current_score)}</td>"
+        f"<td>{escape(c.detail)}</td></tr>"
+        for c in comparison.changes
+        if c.change in _CHANGE_STYLE
+    )
+    table = (
+        "<div class='table-wrap'><table><thead><tr><th>Change</th><th>Case</th>"
+        f"<th>Mean score</th><th>Detail</th></tr></thead><tbody>{rows}</tbody></table></div>"
+        if rows
+        else "<div class='muted'>No case changed status.</div>"
+    )
+    return f"""
+  <h2>Compared with baseline</h2>
+  <div class="panel"><div style="margin-bottom:8px">{headline}</div>{table}</div>"""
+
+
+def render_html(result: RunResult, comparison: Comparison | None = None) -> str:
     summary_rows = "".join(
         f"<tr><td>{escape(s.scorer)}</td><td class='num'>{s.passed}/{s.count}</td>"
         f"<td class='num'>{s.mean_score:.3f}</td></tr>"
@@ -122,6 +162,7 @@ def render_html(result: RunResult) -> str:
         for v, lbl in stats
     )
     cases = "".join(_case(c) for c in result.cases)
+    gate = result.passed and not (comparison is not None and comparison.regressions)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -132,7 +173,7 @@ def render_html(result: RunResult) -> str:
 </head>
 <body>
 <main>
-  <h1>{escape(result.suite)} {_badge(result.passed, "GATE PASSED", "GATE FAILED")}</h1>
+  <h1>{escape(result.suite)} {_badge(gate, "GATE PASSED", "GATE FAILED")}</h1>
   <div class="muted">{escape(result.provider)}{model} ·
     {escape(result.started_at.strftime("%Y-%m-%d %H:%M:%S %Z"))}</div>
   <div class="stats">{stat_html}</div>
@@ -140,7 +181,7 @@ def render_html(result: RunResult) -> str:
   <div class="panel table-wrap"><table>
     <thead><tr><th>Scorer</th><th>Passed</th><th>Mean score</th></tr></thead>
     <tbody>{summary_rows}</tbody>
-  </table></div>
+  </table></div>{_comparison(comparison)}
   <h2>Cases</h2>
   {cases}
 </main>

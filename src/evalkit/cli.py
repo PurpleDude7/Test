@@ -10,6 +10,7 @@ from typing import Any, TextIO
 import yaml
 
 from evalkit import __version__
+from evalkit.compare import Change, Comparison, compare_runs, load_run
 from evalkit.errors import EvalkitError
 from evalkit.loader import load_suite
 from evalkit.providers import create_provider, provider_registry
@@ -72,7 +73,26 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--tag", dest="tags", action="append", default=[], help="only run cases with this tag"
     )
+    run.add_argument(
+        "-b",
+        "--baseline",
+        metavar="JSON",
+        help="JSON report of an earlier run; any case that passed there and fails now "
+        "fails the gate",
+    )
     run.add_argument("-q", "--quiet", action="store_true", help="print only the summary")
+
+    compare = sub.add_parser("compare", help="diff two JSON reports case by case")
+    compare.add_argument("baseline", help="JSON report of the earlier run")
+    compare.add_argument("current", help="JSON report of the newer run")
+    compare.add_argument(
+        "-r",
+        "--report",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="write the current run's report with a baseline section; repeatable",
+    )
 
     validate = sub.add_parser("validate", help="check a suite file without running it")
     validate.add_argument("suite")
@@ -95,9 +115,50 @@ def _print_summary(result: RunResult, out: TextIO) -> None:
     )
 
 
+_CHANGE_LABELS = {
+    Change.REGRESSED: "REGRESSED",
+    Change.FIXED: "FIXED",
+    Change.NEW: "NEW",
+    Change.REMOVED: "REMOVED",
+}
+
+
+def _print_comparison(comparison: Comparison, out: TextIO) -> None:
+    out.write(
+        f"\nvs baseline: {comparison.baseline_pass_rate:.1%} -> "
+        f"{comparison.current_pass_rate:.1%} ({comparison.pass_rate_delta * 100:+.1f} pts), "
+        f"{comparison.regressions} regressed, {comparison.fixes} fixed\n"
+    )
+    for c in comparison.changes:
+        label = _CHANGE_LABELS.get(c.change)
+        if label is not None:
+            detail = f"  - {c.detail}" if c.detail else ""
+            out.write(f"  {label:<9}  {c.case_id}{detail}\n")
+
+
+def _write_reports(
+    result: RunResult, paths: list[str], comparison: Comparison | None, out: TextIO
+) -> None:
+    for path in paths:
+        try:
+            written = write_report(result, path, comparison)
+        except (ValueError, OSError) as exc:
+            raise EvalkitError(f"cannot write report {path}: {exc}") from exc
+        out.write(f"Report written to {written}\n")
+
+
+def _cmd_compare(args: argparse.Namespace, out: TextIO) -> int:
+    comparison = compare_runs(load_run(args.baseline), current := load_run(args.current))
+    _print_comparison(comparison, out)
+    _write_reports(current, args.report, comparison, out)
+    return EXIT_GATE_FAILED if comparison.regressions else EXIT_OK
+
+
 def _cmd_run(args: argparse.Namespace, out: TextIO) -> int:
     if args.concurrency < 1:
         raise EvalkitError("--concurrency must be >= 1")
+    # Read the baseline before spending anything on API calls.
+    baseline = load_run(args.baseline) if args.baseline else None
     suite = load_suite(args.suite)
     try:
         suite = suite.filter_tags(args.tags)
@@ -129,13 +190,13 @@ def _cmd_run(args: argparse.Namespace, out: TextIO) -> int:
         provider.close()
 
     _print_summary(result, out)
-    for path in args.report:
-        try:
-            written = write_report(result, path)
-        except (ValueError, OSError) as exc:
-            raise EvalkitError(f"cannot write report {path}: {exc}") from exc
-        out.write(f"Report written to {written}\n")
-    return EXIT_OK if result.passed else EXIT_GATE_FAILED
+    comparison = compare_runs(baseline, result) if baseline is not None else None
+    if comparison is not None:
+        _print_comparison(comparison, out)
+    _write_reports(result, args.report, comparison, out)
+    if not result.passed or (comparison is not None and comparison.regressions):
+        return EXIT_GATE_FAILED
+    return EXIT_OK
 
 
 def main(argv: Sequence[str] | None = None, out: TextIO | None = None) -> int:
@@ -144,6 +205,8 @@ def main(argv: Sequence[str] | None = None, out: TextIO | None = None) -> int:
     try:
         if args.command == "run":
             return _cmd_run(args, out)
+        if args.command == "compare":
+            return _cmd_compare(args, out)
         if args.command == "validate":
             suite = load_suite(args.suite)
             out.write(f"{args.suite}: OK ({len(suite.cases)} cases)\n")

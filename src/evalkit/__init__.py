@@ -1,5 +1,6 @@
 """evalkit: a small, pluggable library and CLI for evaluating LLM outputs."""
 
+from evalkit.compare import Comparison, compare_runs, load_run
 from evalkit.errors import (
     EvalkitError,
     NotSupportedError,
@@ -28,6 +29,7 @@ __version__ = "0.1.0"
 __all__ = [
     "AnthropicProvider",
     "CaseResult",
+    "Comparison",
     "Completion",
     "EvalkitError",
     "FakeProvider",
@@ -48,7 +50,9 @@ __all__ = [
     "TestCase",
     "__version__",
     "build_scorer",
+    "compare_runs",
     "create_provider",
+    "load_run",
     "load_suite",
     "parse_suite",
     "register_provider",
