@@ -7,6 +7,7 @@ import math
 import re
 import threading
 from collections.abc import Sequence
+from typing import Any
 
 from pydantic import Field
 
@@ -72,6 +73,10 @@ class FakeProvider(Provider):
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         return [self._embed_one(t) for t in texts]
+
+    def cache_identity(self) -> dict[str, Any]:
+        # Replies are a pure function of the config, so all of it belongs in the key.
+        return {"provider": self.name, **self.config.model_dump()}
 
     def _lookup(self, prompt: str) -> str:
         for pattern, reply in self.config.responses.items():

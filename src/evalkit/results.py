@@ -31,6 +31,8 @@ class CaseResult(BaseModel):
     error: str | None = None
     latency_s: float = 0.0
     usage: Usage | None = None
+    cached: bool = False
+    """The model's reply came from the response cache (scorer calls may still be live)."""
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -63,6 +65,11 @@ class RunResult(BaseModel):
     @property
     def passed_count(self) -> int:
         return sum(c.passed for c in self.cases)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def cached_count(self) -> int:
+        return sum(c.cached for c in self.cases)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

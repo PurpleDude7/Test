@@ -27,6 +27,8 @@ src/evalkit/
   runner.py        run_suite: thread-pooled execution, _ProviderPool for named providers
   results.py       ScoreResult, CaseResult, RunResult (pass_rate, passed gate, summaries)
   compare.py       compare_runs / load_run: regressed/fixed/new/removed vs a baseline JSON report
+  cache.py         ResponseCache (atomic JSON files) + CachingProvider wrapper; keyed on
+                   Provider.cache_identity() + messages + sampling params
   registry.py      generic name -> class Registry with entry-point discovery
   errors.py        EvalkitError > SuiteError, RegistryError, ProviderError > NotSupportedError
   providers/       base.py (Provider ABC, registry), fake.py, openai_compat.py, anthropic.py,
@@ -69,8 +71,10 @@ table in README.md.
 
 **A provider:** subclass `Provider` (or `HTTPProvider` for JSON-over-HTTPS APIs), define a
 `ProviderConfig` subclass as `Config`, implement `complete()` (and `embed()` if supported),
-register with `@register_provider("name")`, import it in `providers/__init__.py`, and test it
-with `httpx.MockTransport` in `tests/test_providers.py`. Update the README provider table.
+override `cache_identity()` if anything beyond name and model changes replies (never include
+secrets), register with `@register_provider("name")`, import it in `providers/__init__.py`,
+and test it with `httpx.MockTransport` in `tests/test_providers.py`. Update the README
+provider table.
 
 ## Testing rules
 

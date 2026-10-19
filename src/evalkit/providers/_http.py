@@ -48,6 +48,10 @@ class HTTPProvider(Provider):
             )
         return key
 
+    def cache_identity(self) -> dict[str, Any]:
+        # The same model name can be served by different endpoints (OpenAI vs. a local vLLM).
+        return {**super().cache_identity(), "base_url": self.config.base_url.rstrip("/")}
+
     def auth_headers(self) -> dict[str, str]:
         raise NotImplementedError
 

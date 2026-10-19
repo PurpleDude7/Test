@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
 
+from evalkit.cache import CachingProvider, ResponseCache
 from evalkit.errors import EvalkitError
 from evalkit.models import Suite, TestCase
 from evalkit.providers.base import Provider, create_provider
@@ -26,9 +27,10 @@ class _ProviderPool:
     per-scorer overrides, and cached so each distinct configuration is created once.
     """
 
-    def __init__(self, primary: Provider, suite: Suite) -> None:
+    def __init__(self, primary: Provider, suite: Suite, cache: ResponseCache | None) -> None:
         self._primary = primary
         self._suite = suite
+        self._response_cache = cache
         self._cache: dict[str, Provider] = {}
         self._lock = threading.Lock()
 
@@ -40,7 +42,10 @@ class _ProviderPool:
         with self._lock:
             if key not in self._cache:
                 kind, config = self._suite.resolve_provider(name)
-                self._cache[key] = create_provider(kind, {**config, **overrides})
+                provider = create_provider(kind, {**config, **overrides})
+                if self._response_cache is not None:
+                    provider = CachingProvider(provider, self._response_cache)
+                self._cache[key] = provider
             return self._cache[key]
 
     def close(self) -> None:
@@ -70,6 +75,7 @@ def _run_case(case: TestCase, suite: Suite, provider: Provider, pool: _ProviderP
     result.latency_s = time.perf_counter() - start
     result.output = completion.text
     result.usage = completion.usage
+    result.cached = completion.cached
 
     ctx = ScoreContext(case=case, output=completion.text, get_provider=pool.get)
     for spec in suite.scorers_for(case):
@@ -91,17 +97,22 @@ def run_suite(
     threshold: float | None = None,
     concurrency: int = 4,
     on_result: ProgressCallback | None = None,
+    cache: ResponseCache | None = None,
 ) -> RunResult:
     """Run every case in ``suite`` and score the outputs.
 
     ``threshold`` overrides the suite's own pass-rate gate. Provider and scorer errors are
-    recorded on the case (which then fails) rather than aborting the run.
+    recorded on the case (which then fails) rather than aborting the run. With ``cache``,
+    completions from the provider under test and from named providers (e.g. a judge) are
+    reused across runs.
     """
     if concurrency < 1:
         raise ValueError("concurrency must be >= 1")
     started_at = datetime.now(UTC)
     start = time.perf_counter()
-    pool = _ProviderPool(provider, suite)
+    if cache is not None:
+        provider = CachingProvider(provider, cache)
+    pool = _ProviderPool(provider, suite, cache)
 
     def task(case: TestCase) -> CaseResult:
         res = _run_case(case, suite, provider, pool)

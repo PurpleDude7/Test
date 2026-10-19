@@ -1,5 +1,6 @@
 """evalkit: a small, pluggable library and CLI for evaluating LLM outputs."""
 
+from evalkit.cache import CachingProvider, ResponseCache
 from evalkit.compare import Comparison, compare_runs, load_run
 from evalkit.errors import (
     EvalkitError,
@@ -28,6 +29,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "AnthropicProvider",
+    "CachingProvider",
     "CaseResult",
     "Comparison",
     "Completion",
@@ -40,6 +42,7 @@ __all__ = [
     "ProviderConfig",
     "ProviderError",
     "RegistryError",
+    "ResponseCache",
     "RunResult",
     "ScoreContext",
     "ScoreResult",

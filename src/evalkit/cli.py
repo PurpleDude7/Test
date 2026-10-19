@@ -10,6 +10,7 @@ from typing import Any, TextIO
 import yaml
 
 from evalkit import __version__
+from evalkit.cache import ResponseCache
 from evalkit.compare import Change, Comparison, compare_runs, load_run
 from evalkit.errors import EvalkitError
 from evalkit.loader import load_suite
@@ -80,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON report of an earlier run; any case that passed there and fails now "
         "fails the gate",
     )
+    run.add_argument(
+        "--cache",
+        metavar="DIR",
+        help="reuse model replies for identical requests from DIR (created if missing)",
+    )
     run.add_argument("-q", "--quiet", action="store_true", help="print only the summary")
 
     compare = sub.add_parser("compare", help="diff two JSON reports case by case")
@@ -104,7 +110,8 @@ def build_parser() -> argparse.ArgumentParser:
 def _print_case(case: CaseResult, out: TextIO) -> None:
     mark = "PASS" if case.passed else "FAIL"
     detail = case.error or "; ".join(f"{s.scorer}: {s.reason}" for s in case.scores if not s.passed)
-    out.write(f"  {mark}  {case.case_id}" + (f"  - {detail}" if detail else "") + "\n")
+    cached = " (cached)" if case.cached else ""
+    out.write(f"  {mark}  {case.case_id}{cached}" + (f"  - {detail}" if detail else "") + "\n")
 
 
 def _print_summary(result: RunResult, out: TextIO) -> None:
@@ -113,6 +120,8 @@ def _print_summary(result: RunResult, out: TextIO) -> None:
         f"\n{result.suite}: {result.passed_count}/{result.total} passed "
         f"({result.pass_rate:.1%}), threshold {result.threshold:.1%} -> {verdict}\n"
     )
+    if result.cached_count:
+        out.write(f"{result.cached_count}/{result.total} replies served from cache\n")
 
 
 _CHANGE_LABELS = {
@@ -185,6 +194,7 @@ def _cmd_run(args: argparse.Namespace, out: TextIO) -> int:
             threshold=args.threshold,
             concurrency=args.concurrency,
             on_result=None if args.quiet else lambda c: _print_case(c, out),
+            cache=ResponseCache(args.cache) if args.cache else None,
         )
     finally:
         provider.close()

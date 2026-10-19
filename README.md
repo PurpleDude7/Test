@@ -11,6 +11,8 @@ command exits nonzero when the pass rate drops below a threshold, so it can gate
 - **Reports:** machine-readable JSON and a self-contained HTML page (no JS, no CDN).
 - **Regression tracking:** diff a run against a saved baseline and fail on any case that
   used to pass, even when the overall pass rate still clears the threshold.
+- **Response cache:** `--cache DIR` reuses replies to identical requests, so iterating on
+  scorers or thresholds doesn't pay for the same API calls twice.
 - **Small footprint:** `httpx`, `pydantic`, `PyYAML`. Python 3.11+, fully type-hinted.
 
 ## Quickstart
@@ -50,6 +52,7 @@ evalkit run SUITE [options]
   -j, --concurrency N          cases run in parallel (default 4)
       --tag TAG                only run cases with this tag; repeatable
   -b, --baseline JSON          earlier JSON report; any regressed case fails the gate
+      --cache DIR              reuse replies to identical requests from DIR
   -q, --quiet                  print only the summary
 evalkit compare BASE.json CURRENT.json [-r PATH]
                                diff two runs; exits 1 if any case regressed
@@ -160,6 +163,31 @@ HTTP providers retry 408/409/429/5xx and connection errors with exponential back
 
 The job fails when the pass rate is below the suite's `threshold` (or `--threshold`).
 
+### Caching responses
+
+```bash
+evalkit run evals/suite.yaml --cache .evalkit-cache     # first run calls the model
+evalkit run evals/suite.yaml --cache .evalkit-cache     # identical requests are free
+```
+
+```text
+  PASS  refund-window (cached)
+...
+support-bot: 3/3 passed (100.0%), threshold 90.0% -> PASSED
+3/3 replies served from cache
+```
+
+The cache key is a SHA-256 of the provider's identity (name, model, and endpoint for HTTP
+providers; never the API key), the messages, `temperature` and `max_tokens`. Change any of
+them and the request goes to the model again. Judge calls go through the cache too.
+Failed requests are never cached. Entries are plain JSON files written atomically, so
+parallel runs can share a directory; delete it to start fresh.
+
+With `temperature` above 0 a cached reply freezes one sample, so leave the cache off when
+you're measuring run-to-run variance. Library users can wrap any provider:
+`CachingProvider(provider, ResponseCache(".evalkit-cache"))`, or pass
+`cache=ResponseCache(...)` to `run_suite`.
+
 ### Catching regressions
 
 A pass-rate gate can't see swaps: if one case breaks while another starts passing, the
@@ -204,6 +232,7 @@ src/evalkit/
   runner.py        runs cases concurrently; provider/scorer errors fail the case, not the run
   results.py       ScoreResult, CaseResult, RunResult (pass rate, gate, summaries)
   compare.py       compare_runs / load_run: case-level diff against a baseline report
+  cache.py         ResponseCache (on-disk JSON) and CachingProvider wrapper
   registry.py      name -> class registry with entry-point plugin discovery
   providers/       base.Provider ABC, fake, openai_compat, anthropic, shared HTTP retry logic
   scorers/         base.Scorer ABC, basic (exact/contains/regex), embedding, judge

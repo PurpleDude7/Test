@@ -20,6 +20,8 @@ class Completion(BaseModel):
     text: str
     model: str | None = None
     usage: Usage | None = None
+    cached: bool = False
+    """True when the reply came from a response cache instead of the provider."""
 
 
 class ProviderConfig(BaseModel):
@@ -38,7 +40,8 @@ class Provider(ABC):
     runner fans cases out over a thread pool.
     """
 
-    name: ClassVar[str]
+    name: str
+    """Registry name. A class attribute on real providers; wrappers copy it per instance."""
     Config: ClassVar[type[ProviderConfig]] = ProviderConfig
 
     def __init__(self, config: ProviderConfig) -> None:
@@ -65,6 +68,13 @@ class Provider(ABC):
         max_tokens: int | None = None,
     ) -> Completion:
         """Return the assistant's reply to ``messages``."""
+
+    def cache_identity(self) -> dict[str, Any]:
+        """What, besides the request, determines a reply; part of the response-cache key.
+
+        Never include secrets: the key is hashed, but keep it safe to log anyway.
+        """
+        return {"provider": self.name, "model": self.model}
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """Return one embedding vector per text. Optional capability."""

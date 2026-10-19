@@ -13,3 +13,4 @@ htmlcov/
 /out.html
 /out.json
 /reports/
+.evalkit-cache/

@@ -98,10 +98,11 @@ def _case(case: CaseResult) -> str:
         if rows
         else ""
     )
+    latency = "cached" if case.cached else f"{case.latency_s * 1000:.0f} ms"
     return f"""
 <details class="case"{"" if case.passed else " open"}>
   <summary>{_badge(case.passed)}<span class="id">{escape(case.case_id)}</span>{chips}
-    {tags}<span class="muted">{case.latency_s * 1000:.0f} ms</span></summary>
+    {tags}<span class="muted">{latency}</span></summary>
   <div class="body">
     {_pre("Error", case.error)}
     {_pre("Prompt", case.prompt)}
