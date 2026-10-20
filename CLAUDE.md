@@ -1,8 +1,14 @@
 # CLAUDE.md
 
-Guidance for AI assistants (and humans) working on **evalkit**, a Python library and CLI for
-evaluating LLM outputs. User-facing docs live in [README.md](README.md); this file covers
-how to work on the code.
+Guidance for AI assistants (and humans) working on this repo. It holds two packages, built
+and tested together:
+
+- **evalkit** (`src/evalkit/`): a library and CLI for evaluating LLM outputs.
+- **LectureIQ** (`src/lectureiq/`): an app that turns lecture transcripts into study
+  material. It uses evalkit's providers and response cache, and its web dependencies
+  (Starlette, uvicorn, python-multipart) are the optional `lectureiq` extra.
+
+User-facing docs live in [README.md](README.md); this file covers how to work on the code.
 
 ## Quick reference
 
@@ -13,6 +19,8 @@ pytest tests/test_scorers.py -k judge   # a subset
 ruff check . && ruff format --check .   # lint + format check (ruff format . to fix)
 mypy                               # strict type check of src/ and tests/
 evalkit run examples/suite.yaml --provider fake --report out.html   # end-to-end smoke test
+lectureiq analyze @sample          # LectureIQ smoke test (offline engine, bundled lecture)
+lectureiq serve                    # web app on http://127.0.0.1:8000
 ```
 
 CI (`.github/workflows/ci.yml`) runs ruff, ruff format, and mypy on 3.11, then pytest and
@@ -37,7 +45,23 @@ src/evalkit/
   report/          json_report.py, html_report.py, write_report() picks format by extension
   cli.py           argparse (run, compare, validate, list); exit codes 0 = gate passed,
                    1 = below threshold or regressed vs --baseline, 2 = usage/config error
-tests/             one module per area; conftest.py has the network guard and make_ctx fixture
+src/lectureiq/
+  transcript.py    parse SRT/WebVTT/plain text -> Lecture; chunk_lecture -> timestamped Chunks
+  engines.py       Engine protocol (study_pack, answer) + PackOptions caps
+  offline.py       OfflineEngine: extractive heuristics, deterministic, no model
+  llm.py           LLMEngine: per-chunk JSON notes (map) + outline synthesis (reduce), with
+                   pydantic validation, one repair retry, and skip-with-warning on failure
+  retrieval.py     BM25Index over chunks (used by ask)
+  pipeline.py      analyze(), ask(), make_engine() ("offline" or any evalkit provider)
+  models.py        StudyPack, Section, KeyPoint, Term, Flashcard, QuizQuestion, Answer, Citation
+  export.py        to_markdown(), flashcards_csv()
+  store.py         bounded in-memory LectureStore for the web app
+  web/app.py       Starlette app factory create_app(engine); JSON API under /api
+  web/static/      index.html, app.js, style.css (vanilla JS, no build step)
+  samples/         intro_to_ml.vtt, the bundled demo lecture (`@sample` in the CLI)
+  cli.py           lectureiq analyze | ask | serve
+tests/             one module per area (test_lectureiq_* for LectureIQ); conftest.py has the
+                   network guard, make_ctx, and sample_vtt fixtures
 examples/suite.yaml  runs green offline with the fake provider; used by tests and CI
 ```
 
@@ -60,6 +84,12 @@ examples/suite.yaml  runs green offline with the fake provider; used by tests an
   pydantic, PyYAML; anything heavy goes in an optional extra and is imported lazily.
 - **Security:** API keys come from environment variables (`api_key_env`); never put keys in
   suites, tests, or fixtures. The HTML report must escape every user-controlled string.
+- **LectureIQ frontend:** insert lecture-derived text with `textContent` (the `h()` helper in
+  `app.js`), never `innerHTML`; transcripts and model output are untrusted. No build step and
+  no CDN dependencies: keep it plain HTML, CSS, and JS.
+- **LectureIQ engines** implement both `study_pack()` and `answer()`. Every generated item
+  carries a `chunk_id` so the UI can link it to the transcript. Model output is untrusted
+  JSON: validate it with pydantic, drop bad items, and record a warning instead of failing.
 
 ## Adding things
 
@@ -85,6 +115,10 @@ provider table.
 - `filterwarnings = ["error"]`: warnings fail the suite; fix the cause rather than
   filtering it.
 - Patch `evalkit.providers._http.time.sleep` in retry tests so they stay fast.
+- LectureIQ: drive `LLMEngine` with `FakeProvider` (`regex: true` responses keyed on
+  `TASK: chunk_notes` / `TASK: synthesis` / `TASK: answer` or `excerpt id="N"`), and the web
+  API with `starlette.testclient.TestClient`. The pytest config ignores one anyio deprecation
+  warning raised inside Starlette's test client; don't widen that filter.
 - If you change `examples/suite.yaml`, keep it passing with `--provider fake`; tests and CI
   depend on it.
 - Bug fixes come with a test that fails without the fix.

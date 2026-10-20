@@ -15,6 +15,10 @@ command exits nonzero when the pass rate drops below a threshold, so it can gate
   scorers or thresholds doesn't pay for the same API calls twice.
 - **Small footprint:** `httpx`, `pydantic`, `PyYAML`. Python 3.11+, fully type-hinted.
 
+The repo also contains **[LectureIQ](#lectureiq)**, an app built on evalkit's providers
+that turns lecture transcripts into study material: outline, glossary, flashcards, a quiz,
+and answers that cite the lecture.
+
 ## Quickstart
 
 ```bash
@@ -213,6 +217,8 @@ reports you already have, without calling any model.
 
 ## Architecture
 
+This section covers evalkit; LectureIQ's layout is under [LectureIQ](#lectureiq).
+
 ```text
 suite.yaml ──► loader ──► Suite / TestCase (pydantic, validated up front)
                                │
@@ -293,6 +299,92 @@ max_length = "my_package.scorers:MaxLength"
 
 [project.entry-points."evalkit.providers"]
 echo = "my_package.providers:EchoProvider"
+```
+
+## LectureIQ
+
+LectureIQ turns a lecture transcript into a study kit and lets you ask the lecture
+questions. It is a Python backend (Starlette) with a vanilla-JS frontend, and it uses
+evalkit's providers, so any OpenAI-compatible API or Anthropic can power it.
+
+![LectureIQ outline view](docs/lectureiq.png)
+
+```bash
+pip install -e ".[lectureiq]"
+
+lectureiq serve                         # http://127.0.0.1:8000, offline engine, no API key
+lectureiq serve --provider anthropic    # LLM engine (reads ANTHROPIC_API_KEY)
+lectureiq serve --provider openai -m gpt-4o-mini --cache .evalkit-cache
+lectureiq serve --provider openai -O base_url=http://localhost:11434/v1 -O api_key=unused \
+    -m llama3.1                         # a local model through Ollama
+```
+
+In the browser, paste a transcript or drop a `.txt`, `.md`, `.srt` or `.vtt` file (or click
+**Try the sample lecture**). You get:
+
+| Tab | What it shows |
+| --- | --- |
+| Outline | Sections with summaries and a ▶ timestamp that jumps to the transcript |
+| Key points | The main takeaways, each linked to where it was said |
+| Glossary | Terms and their definitions as used in the lecture |
+| Flashcards | Flip cards (click or Space, ← → to move, shuffle); export to Anki as CSV |
+| Quiz | Multiple choice with scoring and explanations |
+| Ask | Questions answered from the lecture, citing timestamps; says so when it isn't covered |
+| Transcript | The lecture in parts, highlighted when you follow a citation |
+
+The study guide downloads as Markdown and the flashcards as CSV (Anki's *File → Import*
+accepts it as is).
+
+The same features work from the command line:
+
+```bash
+lectureiq analyze lecture.vtt --markdown guide.md --csv cards.csv --json pack.json
+lectureiq analyze @sample                          # the bundled demo lecture
+lectureiq ask lecture.vtt "Why do we need a test set?"
+cat notes.txt | lectureiq analyze - --title "Week 3"
+```
+
+### Engines
+
+- **offline** (default) needs no model or API key. It is a heuristic baseline. Summaries
+  and key points are the most representative sentences. The glossary comes from
+  definitional sentences ("X is ..."). The quiz uses other definitions from the lecture
+  as wrong answers. Q&A returns the best-matching sentences with their timestamps.
+- **LLM** (any evalkit provider) sends each part of the lecture to the model, which
+  returns JSON notes (summary, key points, terms, flashcards, quiz). A final call merges
+  the summaries into a title, a TL;DR and an outline. Replies are validated with pydantic.
+  An invalid reply gets one repair attempt. A part that still fails is skipped with a
+  warning, and malformed items are dropped. Q&A retrieves the most relevant parts with
+  BM25 and asks the model to answer only from them, citing part ids that are mapped back
+  to timestamps. `--cache DIR` reuses evalkit's response cache.
+
+### HTTP API
+
+| Method and path | Purpose |
+| --- | --- |
+| `POST /api/lectures` | Analyze a transcript: JSON `{"text", "title"}`, or a form with `file` or `text` |
+| `POST /api/lectures/sample` | Analyze the bundled sample lecture |
+| `GET /api/lectures/{id}` | The lecture's parts and study pack |
+| `POST /api/lectures/{id}/ask` | `{"question": "..."}` returns an answer with citations |
+| `GET /api/lectures/{id}/export.md` | Markdown study guide |
+| `GET /api/lectures/{id}/flashcards.csv` | Flashcards as CSV |
+| `GET /api/health` | Engine and model in use |
+
+Lectures are kept in memory (the 50 most recent), so restarting the server clears them.
+Uploads are capped at 2 MB.
+
+### How it fits together
+
+```text
+transcript.py   parse SRT / WebVTT / plain text -> Lecture -> timestamped Chunks
+engines.py      Engine protocol + PackOptions (caps on how much to generate)
+offline.py      OfflineEngine: extractive, deterministic, no model
+llm.py          LLMEngine: map chunks -> JSON notes, reduce -> outline; answers with citations
+retrieval.py    BM25 over chunks for "ask"
+pipeline.py     analyze(), ask(), make_engine() (evalkit provider + optional response cache)
+export.py       Markdown study guide, Anki CSV
+web/            Starlette app + static index.html / app.js / style.css
+cli.py          lectureiq analyze | ask | serve
 ```
 
 ## Development

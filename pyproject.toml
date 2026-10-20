@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "evalkit"
 dynamic = ["version"]
-description = "A small, pluggable library and CLI for evaluating LLM outputs."
+description = "A small, pluggable library and CLI for evaluating LLM outputs, plus LectureIQ."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -26,7 +26,15 @@ dependencies = [
 
 [project.optional-dependencies]
 embeddings = ["sentence-transformers>=2.7"]
+lectureiq = [
+    "python-multipart>=0.0.9",
+    "starlette>=0.37",
+    "uvicorn>=0.29",
+]
 dev = [
+    "python-multipart>=0.0.9",
+    "starlette>=0.37",
+    "uvicorn>=0.29",
     "mypy>=1.10",
     "pytest>=8.0",
     "ruff>=0.6",
@@ -35,17 +43,22 @@ dev = [
 
 [project.scripts]
 evalkit = "evalkit.cli:main"
+lectureiq = "lectureiq.cli:main"
 
 [tool.hatch.version]
 path = "src/evalkit/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/evalkit"]
+packages = ["src/evalkit", "src/lectureiq"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # Raised inside starlette.testclient on import with anyio>=4.15; not our code.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 100

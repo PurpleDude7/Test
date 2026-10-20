@@ -1,0 +1,79 @@
+WEBVTT
+
+00:02.000 --> 00:18.000
+Okay, let's get started. Today is our first real lecture on machine learning, and I want to build intuition before we touch any math.
+
+00:31.000 --> 00:46.000
+Machine learning is a way of building programs that improve at a task by learning patterns from data instead of following hand-written rules.
+
+00:59.000 --> 01:18.000
+Think about a spam filter. Writing rules by hand for every kind of spam is hopeless, but given thousands of labeled emails, a model can learn what spam looks like.
+
+01:31.000 --> 01:43.000
+Supervised learning is learning from examples that come with the correct answer, which we call labels.
+
+01:56.000 --> 02:12.000
+Each example has features, and features are the measurable properties of an example, like the words in an email or the size of a house.
+
+02:25.000 --> 02:42.000
+A label is the answer we want the model to predict for an example, such as spam or not spam, or the sale price of the house.
+
+02:55.000 --> 03:09.000
+When the label is a category, the task is classification. When the label is a number, the task is regression.
+
+03:22.000 --> 03:36.000
+Unsupervised learning is learning from data without labels, where the goal is to discover structure such as groups of similar customers.
+
+03:49.000 --> 04:07.000
+Clustering is the most common unsupervised task: it groups examples so that items in the same group are more similar to each other than to items in other groups.
+
+04:20.000 --> 04:34.000
+Now, how does a model actually learn? A model is a function with adjustable parameters that maps features to a prediction.
+
+04:47.000 --> 05:03.000
+A loss function measures how far the model's predictions are from the true labels, so a lower loss means better predictions on that data.
+
+05:16.000 --> 05:30.000
+Training is the process of adjusting the parameters to make the loss as small as possible on the training data.
+
+05:43.000 --> 05:59.000
+The workhorse algorithm here is gradient descent. Gradient descent is an optimization method that repeatedly nudges each parameter in the direction that reduces the loss.
+
+06:12.000 --> 06:30.000
+The learning rate controls how big each nudge is. If it is too large, training bounces around and never settles; if it is too small, training takes forever.
+
+06:43.000 --> 06:59.000
+Here is the trap everyone falls into. A model can do brilliantly on the data it was trained on and still fail on new data.
+
+07:12.000 --> 07:28.000
+Overfitting is when a model memorizes noise and quirks of the training data instead of the general pattern, so it performs poorly on unseen examples.
+
+07:41.000 --> 07:57.000
+Underfitting is the opposite problem: the model is too simple to capture the real pattern, so it does badly even on the training data.
+
+08:10.000 --> 08:25.000
+That is why we never judge a model by its training score. We hold out some data the model never sees during training.
+
+08:38.000 --> 08:56.000
+The training set is the data used to fit the parameters, while the test set is held-out data used only once at the end to estimate real-world performance.
+
+09:09.000 --> 09:24.000
+A validation set is a third slice of data used during development to compare models and tune settings without touching the test set.
+
+09:37.000 --> 09:53.000
+Cross-validation is a technique that rotates which slice of the data is held out, so every example gets used for both training and validation.
+
+10:06.000 --> 10:24.000
+Settings like the learning rate are not learned from data. Hyperparameters are configuration choices we set before training, such as the learning rate or the number of layers.
+
+10:37.000 --> 10:52.000
+One more idea before we wrap up. Regularization is any technique that discourages a model from becoming too complex, which helps prevent overfitting.
+
+11:05.000 --> 11:21.000
+A simple form of regularization adds a penalty to the loss for large parameter values, so the model prefers simpler explanations of the data.
+
+11:34.000 --> 11:58.000
+Let's recap the workflow. Collect and clean data, split it into training, validation and test sets, choose a model, train it with gradient descent, tune hyperparameters on the validation set, and report the final score on the test set exactly once.
+
+12:11.000 --> 12:28.000
+For next week, please read chapter two and think about one problem in your own life that could be framed as classification or regression. See you then.

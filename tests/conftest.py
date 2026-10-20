@@ -53,3 +53,10 @@ def make_ctx() -> MakeContext:
         return ScoreContext(case=case, output=output, get_provider=lookup)
 
     return factory
+
+
+@pytest.fixture
+def sample_vtt() -> str:
+    from lectureiq.sample import sample_transcript
+
+    return sample_transcript()

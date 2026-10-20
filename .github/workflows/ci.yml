@@ -46,9 +46,14 @@ jobs:
         run: pytest
       - name: CLI smoke test (fake provider, doubles as the CI gate demo)
         run: evalkit run examples/suite.yaml --provider fake --report report.html --report report.json
+      - name: LectureIQ smoke test (offline engine)
+        run: lectureiq analyze @sample --markdown study-guide.md --json study-pack.json
       - uses: actions/upload-artifact@v4
         if: always() && matrix.python-version == '3.11'
         with:
           name: evalkit-report
-          path: report.*
+          path: |
+            report.*
+            study-guide.md
+            study-pack.json
           if-no-files-found: ignore

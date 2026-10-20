@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LectureIQ</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%233b5bdb%22/%3E%3Ctext x=%2216%22 y=%2221%22 font-family=%22sans-serif%22 font-size=%2213%22 font-weight=%22700%22 fill=%22white%22 text-anchor=%22middle%22%3EIQ%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true">IQ</span> LectureIQ</div>
+    <span id="engine" class="pill muted" title="Engine generating the study material"></span>
+  </header>
+
+  <main>
+    <section id="intake" class="card">
+      <h1>Turn a lecture into a study kit</h1>
+      <p class="muted">Paste a transcript or drop a <code>.txt</code>, <code>.md</code>,
+        <code>.srt</code> or <code>.vtt</code> file. You get an outline, key points, a
+        glossary, flashcards, a quiz, and answers that cite the lecture.</p>
+      <form id="intake-form">
+        <label class="field">
+          <span>Title <span class="muted">(optional)</span></span>
+          <input id="title" name="title" type="text" maxlength="200"
+                 placeholder="e.g. CS 229 · Lecture 1">
+        </label>
+        <label class="field">
+          <span>Transcript</span>
+          <textarea id="text" name="text" rows="8"
+                    placeholder="Paste the lecture transcript here…"></textarea>
+        </label>
+        <div id="drop" class="drop" tabindex="0">
+          <input id="file" type="file" accept=".txt,.md,.srt,.vtt,text/plain" hidden>
+          <span id="drop-label">Drop a transcript file here or <u>browse</u></span>
+        </div>
+        <div class="actions">
+          <button id="analyze" class="primary" type="submit">Analyze lecture</button>
+          <button id="sample" type="button">Try the sample lecture</button>
+          <span id="status" class="muted" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+
+    <section id="results" hidden>
+      <div class="card hero">
+        <div class="hero-head">
+          <div>
+            <h2 id="pack-title"></h2>
+            <p id="pack-meta" class="muted"></p>
+          </div>
+          <div class="actions">
+            <a id="dl-md" class="button" download>Study guide (.md)</a>
+            <a id="dl-csv" class="button" download>Flashcards (.csv)</a>
+            <button id="new" type="button">New lecture</button>
+          </div>
+        </div>
+        <p id="tldr" class="tldr"></p>
+        <ul id="warnings" class="warnings" hidden></ul>
+      </div>
+
+      <nav class="tabs" role="tablist" aria-label="Study material">
+        <button role="tab" data-tab="outline" aria-selected="true">Outline</button>
+        <button role="tab" data-tab="points">Key points</button>
+        <button role="tab" data-tab="glossary">Glossary</button>
+        <button role="tab" data-tab="cards">Flashcards</button>
+        <button role="tab" data-tab="quiz">Quiz</button>
+        <button role="tab" data-tab="ask">Ask</button>
+        <button role="tab" data-tab="transcript">Transcript</button>
+      </nav>
+
+      <section class="card panel" data-panel="outline"><ol id="outline" class="outline"></ol></section>
+      <section class="card panel" data-panel="points" hidden><ul id="points" class="list"></ul></section>
+      <section class="card panel" data-panel="glossary" hidden><dl id="glossary" class="glossary"></dl></section>
+
+      <section class="card panel" data-panel="cards" hidden>
+        <div id="card-empty" class="muted" hidden>No flashcards for this lecture.</div>
+        <div id="card-wrap">
+          <button id="flashcard" class="flashcard" type="button" aria-live="polite">
+            <span class="face-label" id="card-face"></span>
+            <span id="card-text"></span>
+          </button>
+          <div class="actions center">
+            <button id="card-prev" type="button">← Prev</button>
+            <span id="card-count" class="muted"></span>
+            <button id="card-next" type="button">Next →</button>
+            <button id="card-shuffle" type="button">Shuffle</button>
+          </div>
+          <p class="muted center small">Click the card or press Space to flip; ← → to move.</p>
+        </div>
+      </section>
+
+      <section class="card panel" data-panel="quiz" hidden>
+        <form id="quiz"></form>
+        <div class="actions">
+          <button id="quiz-check" class="primary" type="button">Check answers</button>
+          <button id="quiz-reset" type="button">Reset</button>
+          <span id="quiz-score" class="score" role="status" aria-live="polite"></span>
+        </div>
+      </section>
+
+      <section class="card panel" data-panel="ask" hidden>
+        <form id="ask-form" class="ask">
+          <input id="question" type="text" maxlength="1000" autocomplete="off"
+                 placeholder="Ask anything about this lecture…">
+          <button class="primary" type="submit">Ask</button>
+        </form>
+        <div id="answers"></div>
+      </section>
+
+      <section class="card panel" data-panel="transcript" hidden><div id="transcript"></div></section>
+    </section>
+  </main>
+</body>
+</html>
