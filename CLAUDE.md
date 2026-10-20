@@ -117,8 +117,9 @@ provider table.
 - Patch `evalkit.providers._http.time.sleep` in retry tests so they stay fast.
 - LectureIQ: drive `LLMEngine` with `FakeProvider` (`regex: true` responses keyed on
   `TASK: chunk_notes` / `TASK: synthesis` / `TASK: answer` or `excerpt id="N"`), and the web
-  API with `starlette.testclient.TestClient`. The pytest config ignores one anyio deprecation
-  warning raised inside Starlette's test client; don't widen that filter.
+  API with `starlette.testclient.TestClient`. The pytest config ignores two deprecation
+  warnings raised inside Starlette's test client (anyio alias, httpx -> httpx2); don't widen
+  those filters.
 - If you change `examples/suite.yaml`, keep it passing with `--provider fake`; tests and CI
   depend on it.
 - Bug fixes come with a test that fails without the fix.

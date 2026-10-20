@@ -88,20 +88,17 @@ def test_paste_json_and_upload_file(client: TestClient) -> None:
     assert form_text.status_code == 201 and form_text.json()["title"] == "Form"
 
 
-@pytest.mark.parametrize(
-    ("kwargs", "status", "message"),
-    [
-        ({"json": {"text": "   "}}, 400, "no text"),
-        ({"content": b"not json", "headers": {"content-type": "application/json"}}, 400, "JSON"),
-        ({"json": ["a", "list"]}, 400, "object"),
-    ],
-)
-def test_bad_submissions(
-    client: TestClient, kwargs: dict[str, object], status: int, message: str
-) -> None:
-    response = client.post("/api/lectures", **kwargs)  # type: ignore[arg-type]
-    assert response.status_code == status
-    assert message in response.json()["error"]
+def test_bad_submissions(client: TestClient) -> None:
+    responses = {
+        "no text": client.post("/api/lectures", json={"text": "   "}),
+        "JSON": client.post(
+            "/api/lectures", content=b"not json", headers={"content-type": "application/json"}
+        ),
+        "object": client.post("/api/lectures", json=["a", "list"]),
+    }
+    for message, response in responses.items():
+        assert response.status_code == 400
+        assert message in response.json()["error"]
 
 
 def test_upload_size_limit(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -56,8 +56,10 @@ testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 filterwarnings = [
     "error",
-    # Raised inside starlette.testclient on import with anyio>=4.15; not our code.
+    # Both raised inside starlette.testclient on import, depending on the Starlette version
+    # (anyio>=4.15 alias; Starlette>=1.9 asking for httpx2). Neither comes from our code.
     "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
 ]
 
 [tool.ruff]
