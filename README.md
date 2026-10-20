@@ -304,6 +304,12 @@ echo = "my_package.providers:EchoProvider"
 
 ## LectureIQ
 
+**Live demo: <https://claude.ai/artifact/3Gyz9ND4P8xoT6jhew7nTr>** runs entirely in the
+browser. It has the offline engine plus an optional Claude engine that uses the viewer's own
+Claude account. Its source is in [`demo/`](demo/): a JavaScript port of the engine that
+`tests/test_demo_port.py` holds to the Python package, so the two must give the same study
+pack and both pass the QA suite. Rebuild it with `python demo/build.py`.
+
 LectureIQ turns a lecture transcript into a study kit and lets you ask the lecture
 questions. It is a Python backend (Starlette) with a vanilla-JS frontend, and it uses
 evalkit's providers, so any OpenAI-compatible API or Anthropic can power it.

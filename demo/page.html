@@ -1,0 +1,834 @@
+<title>LectureIQ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one centered study column; intake card, recent list, then results with tabbed panels. */
+:root {
+  --bg: #f6f6f3;
+  --panel: #ffffff;
+  --text: #1c1c1f;
+  --muted: #64646e;
+  --border: #e3e2dc;
+  --accent: #3b5bdb;
+  --accent-text: #ffffff;
+  --accent-soft: #e8edff;
+  --ok: #1f7a45;
+  --ok-soft: #e2f4e9;
+  --bad: #b3261e;
+  --bad-soft: #fde7e5;
+  --warn-soft: #fff4d6;
+  --code: #f0efea;
+  --radius: 12px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121214; --panel: #1b1b1f; --text: #ededf0; --muted: #a2a2ad; --border: #2d2d34;
+    --accent: #8fa6ff; --accent-text: #0f1530; --accent-soft: #232c4d; --ok: #6bd49a;
+    --ok-soft: #173326; --bad: #ff8f86; --bad-soft: #3d1c1a; --warn-soft: #3a3115; --code: #26262c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121214; --panel: #1b1b1f; --text: #ededf0; --muted: #a2a2ad; --border: #2d2d34;
+  --accent: #8fa6ff; --accent-text: #0f1530; --accent-soft: #232c4d; --ok: #6bd49a;
+  --ok-soft: #173326; --bad: #ff8f86; --bad-soft: #3d1c1a; --warn-soft: #3a3115; --code: #26262c;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font: 16px/1.55 var(--font); }
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--panel);
+}
+main {
+  max-width: 920px; margin: 0 auto;
+  padding-block: 24px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1 { font-size: 26px; margin: 0 0 6px; text-wrap: balance; }
+h2 { font-size: 22px; margin: 0; text-wrap: balance; }
+code { background: var(--code); padding: 1px 5px; border-radius: 5px; font-size: 0.9em; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.center { justify-content: center; text-align: center; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--border); background: var(--panel);
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+}
+.brand { font-weight: 700; font-size: 18px; display: flex; gap: 10px; align-items: center; }
+.logo {
+  display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+  background: var(--accent); color: var(--accent-text); font-size: 13px; letter-spacing: 0.5px;
+}
+.pill {
+  font-size: 13px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border);
+  white-space: nowrap; color: var(--muted);
+}
+
+.card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; margin-bottom: 16px; min-width: 0;
+}
+.field { display: block; margin: 14px 0; }
+.field > span { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+input[type="text"], textarea {
+  width: 100%; font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+}
+textarea { resize: vertical; min-height: 140px; }
+input:focus-visible, textarea:focus-visible, button:focus-visible, .drop:focus-visible, .engine input:focus-visible + span {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.drop {
+  border: 2px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center;
+  color: var(--muted); cursor: pointer;
+}
+.drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+
+.engine { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; border: 0; padding: 0; }
+.engine legend { font-weight: 600; font-size: 14px; margin-bottom: 6px; padding: 0; }
+.engine label { position: relative; }
+.engine input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.engine span {
+  display: block; border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
+  font-size: 14px; background: var(--panel); cursor: pointer;
+}
+.engine span small { display: block; color: var(--muted); font-size: 12px; }
+.engine input:checked + span { border-color: var(--accent); background: var(--accent-soft); }
+.engine input:disabled + span { opacity: 0.55; cursor: not-allowed; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+button {
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--text); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button:disabled { opacity: 0.6; cursor: progress; }
+
+.hero-head { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.hero-head > div { min-width: 0; }
+.hero-head .actions { margin-top: 0; }
+.tldr { font-size: 17px; margin: 14px 0 0; }
+.warnings { background: var(--warn-soft); border-radius: 8px; padding: 10px 14px 10px 30px; margin: 14px 0 0; font-size: 14px; }
+.note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+
+.tabs { display: flex; gap: 4px; overflow-x: auto; margin: 0 0 12px; padding-bottom: 2px; scrollbar-width: thin; }
+.tabs button { border-radius: 999px; white-space: nowrap; }
+.tabs button[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent); }
+
+.outline { padding-left: 22px; margin: 0; }
+.outline li { margin-bottom: 14px; }
+.outline .heading { font-weight: 650; }
+.list { padding-left: 20px; margin: 0; }
+.list li { margin-bottom: 10px; }
+.glossary { margin: 0; }
+.glossary dt { font-weight: 650; margin-top: 12px; }
+.glossary dd { margin: 2px 0 0; }
+
+.ts {
+  font: inherit; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent); border: 0; margin-left: 6px;
+  vertical-align: 1px; font-variant-numeric: tabular-nums;
+}
+
+.flashcard {
+  width: 100%; min-height: 220px; display: flex; flex-direction: column; gap: 10px;
+  justify-content: center; text-align: center; font-size: 20px; font-weight: 500;
+  padding: 28px; border-radius: var(--radius); background: var(--bg); line-height: 1.45;
+}
+.flashcard.back { background: var(--accent-soft); }
+.face-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+
+.question { border-top: 1px solid var(--border); padding: 16px 0; }
+.question:first-child { border-top: 0; padding-top: 0; }
+.question legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+.question fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.option {
+  display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; margin: 4px 0;
+  border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+}
+.option:hover { border-color: var(--border); }
+.option input { margin-top: 5px; }
+.option.correct { background: var(--ok-soft); border-color: var(--ok); }
+.option.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.explanation { font-size: 14px; color: var(--muted); margin: 6px 0 0; }
+.score { font-weight: 700; }
+
+.ask { display: flex; gap: 8px; }
+.ask input { flex: 1; min-width: 0; }
+.qa { border-top: 1px solid var(--border); padding: 14px 0; }
+.qa .q { font-weight: 650; margin-bottom: 4px; }
+.qa.ungrounded .a { color: var(--muted); font-style: italic; }
+.thinking { color: var(--muted); }
+
+.recent { list-style: none; margin: 0; padding: 0; }
+.recent li {
+  display: flex; gap: 10px; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+.recent li:first-child { border-top: 0; }
+.recent li > div { min-width: 0; }
+.recent .open { border: 0; background: none; padding: 0; text-align: left; font-size: 15px; color: var(--accent); }
+.recent .meta { font-size: 13px; color: var(--muted); }
+.recent .delete { font-size: 13px; padding: 4px 10px; flex-shrink: 0; }
+.recent .delete.confirm { border-color: var(--bad); color: var(--bad); }
+
+.chunk { padding: 12px 14px; border-radius: 8px; margin-bottom: 8px; border: 1px solid transparent; }
+.chunk .chunk-head { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.chunk.flash { border-color: var(--accent); background: var(--accent-soft); }
+@media (prefers-reduced-motion: no-preference) { .chunk.flash { transition: background 1.5s; } }
+
+footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 24px; }
+footer a { color: var(--accent); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 22px; }
+  .card { padding: 16px; }
+  .ask { flex-direction: column; }
+}
+</style>
+
+<header class="topbar">
+  <div class="brand"><span class="logo" aria-hidden="true">IQ</span> LectureIQ</div>
+  <span id="engine-pill" class="pill">offline engine</span>
+</header>
+
+<main>
+  <section id="intake" class="card">
+    <h1>Turn a lecture into a study kit</h1>
+    <p class="muted">Paste a transcript or drop a <code>.txt</code>, <code>.md</code>, <code>.srt</code>
+      or <code>.vtt</code> file. You get an outline, key points, a glossary, flashcards, a quiz, and
+      answers that cite the lecture.</p>
+    <form id="intake-form">
+      <label class="field">
+        <span>Title <span class="muted">(optional)</span></span>
+        <input id="title" name="title" type="text" maxlength="200" placeholder="e.g. CS 229 · Lecture 1">
+      </label>
+      <label class="field">
+        <span>Transcript</span>
+        <textarea id="text" name="text" rows="8" placeholder="Paste the lecture transcript here…"></textarea>
+      </label>
+      <div id="drop" class="drop" tabindex="0" role="button" aria-label="Choose a transcript file">
+        <input id="file" type="file" accept=".txt,.md,.srt,.vtt,text/plain" hidden>
+        <span id="drop-label">Drop a transcript file here or <u>browse</u></span>
+      </div>
+      <fieldset class="engine" id="engine-choice">
+        <legend>Engine</legend>
+        <label><input type="radio" name="engine" id="engine-offline" value="offline" checked>
+          <span>Offline<small>Instant, runs in your browser</small></span></label>
+        <label><input type="radio" name="engine" id="engine-claude" value="claude" disabled>
+          <span>Claude<small id="claude-note">Checking availability…</small></span></label>
+      </fieldset>
+      <div class="actions">
+        <button id="analyze" class="primary" type="submit">Analyze lecture</button>
+        <button id="sample" type="button">Try the sample lecture</button>
+        <span id="status" class="muted" role="status" aria-live="polite"></span>
+      </div>
+    </form>
+  </section>
+
+  <section id="recent" class="card" hidden>
+    <h2>Your lectures</h2>
+    <p class="muted small">Saved in this browser only.</p>
+    <ul id="recent-list" class="recent"></ul>
+  </section>
+
+  <section id="results" hidden>
+    <div class="card">
+      <div class="hero-head">
+        <div>
+          <h2 id="pack-title"></h2>
+          <p id="pack-meta" class="muted"></p>
+        </div>
+        <div class="actions">
+          <button id="dl-md" type="button">Study guide (.md)</button>
+          <button id="dl-csv" type="button">Flashcards (.csv)</button>
+          <button id="new" type="button">New lecture</button>
+        </div>
+      </div>
+      <p id="tldr" class="tldr"></p>
+      <ul id="warnings" class="warnings" hidden></ul>
+      <p id="export-status" class="note" role="status" aria-live="polite"></p>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="Study material">
+      <button role="tab" data-tab="outline" aria-selected="true">Outline</button>
+      <button role="tab" data-tab="points">Key points</button>
+      <button role="tab" data-tab="glossary">Glossary</button>
+      <button role="tab" data-tab="cards">Flashcards</button>
+      <button role="tab" data-tab="quiz">Quiz</button>
+      <button role="tab" data-tab="ask">Ask</button>
+      <button role="tab" data-tab="transcript">Transcript</button>
+    </nav>
+
+    <section class="card panel" data-panel="outline"><ol id="outline" class="outline"></ol></section>
+    <section class="card panel" data-panel="points" hidden><ul id="points" class="list"></ul></section>
+    <section class="card panel" data-panel="glossary" hidden><dl id="glossary" class="glossary"></dl></section>
+
+    <section class="card panel" data-panel="cards" hidden>
+      <div id="card-empty" class="muted" hidden>No flashcards for this lecture.</div>
+      <div id="card-wrap">
+        <button id="flashcard" class="flashcard" type="button" aria-live="polite">
+          <span class="face-label" id="card-face"></span>
+          <span id="card-text"></span>
+        </button>
+        <div class="actions center">
+          <button id="card-prev" type="button">← Prev</button>
+          <span id="card-count" class="muted"></span>
+          <button id="card-next" type="button">Next →</button>
+          <button id="card-shuffle" type="button">Shuffle</button>
+        </div>
+        <p class="muted center small">Click the card or press Space to flip; ← → to move.</p>
+      </div>
+    </section>
+
+    <section class="card panel" data-panel="quiz" hidden>
+      <form id="quiz"></form>
+      <div class="actions">
+        <button id="quiz-check" class="primary" type="button">Check answers</button>
+        <button id="quiz-reset" type="button">Reset</button>
+        <span id="quiz-score" class="score" role="status" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="card panel" data-panel="ask" hidden>
+      <form id="ask-form" class="ask">
+        <input id="question" type="text" maxlength="1000" autocomplete="off" placeholder="Ask anything about this lecture…">
+        <button class="primary" type="submit">Ask</button>
+      </form>
+      <div id="answers"></div>
+    </section>
+
+    <section class="card panel" data-panel="transcript" hidden><div id="transcript"></div></section>
+  </section>
+
+  <footer>
+    Demo build: everything runs in your browser. The full app adds a server, recordings,
+    and OpenAI, Anthropic or local models: <a href="__REPO_URL__" target="_blank" rel="noopener">source on GitHub</a>.
+  </footer>
+</main>
+
+<script>
+/*__CORE__*/
+</script>
+<script>
+"use strict";
+const L = window.LectureIQ;
+const SAMPLE_VTT = __SAMPLE_VTT__;
+const SAMPLE_TITLE = "Introduction to Machine Learning";
+const $ = (sel) => document.querySelector(sel);
+
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === "class") el.className = value;
+    else if (key.startsWith("on")) el.addEventListener(key.slice(2), value);
+    else if (value !== false && value != null) el.setAttribute(key, value === true ? "" : value);
+  }
+  for (const child of children.flat()) {
+    if (child == null || child === false) continue;
+    el.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+  return el;
+}
+
+// ---------- capabilities (all optional) ----------
+
+const caps = { sample: null, downloads: null };
+
+// ---------- storage: this browser only ----------
+
+const STORE_KEY = "lectureiq.lectures.v1";
+const ENGINE_KEY = "lectureiq.engine";
+const MAX_SAVED = 30;
+let memory = [];
+
+function loadAll() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) memory = JSON.parse(raw);
+  } catch { /* storage unavailable: keep what is in memory */ }
+  return memory;
+}
+function saveAll(items) {
+  memory = items.slice(0, MAX_SAVED);
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(memory)); return true; } catch { return false; }
+}
+function remember(key, value) { try { localStorage.setItem(key, value); } catch { /* optional */ } }
+function recall(key) { try { return localStorage.getItem(key); } catch { return null; } }
+
+function newId() {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 12);
+}
+
+// ---------- Claude engine (via the page's sample capability) ----------
+
+const CLAUDE_ERRORS = {
+  not_granted: "Claude isn't allowed on this page for your account. Use the offline engine.",
+  sampling_disabled: "Claude isn't available for your account. Use the offline engine.",
+  rate_limited: "Claude is busy or you've reached a usage limit. Try again later, or use the offline engine.",
+  session_expired: "Your Claude session expired. Sign in again, then retry.",
+  prompt_too_large: "This lecture is too long to send to Claude in one go. Try the offline engine.",
+  invalid_json: "Claude's reply couldn't be read. Try again.",
+  refused: "Claude declined this transcript. Try the offline engine.",
+};
+const claudeMessage = (e) => CLAUDE_ERRORS[e && e.code] || "Claude couldn't finish. Try again, or use the offline engine.";
+const PERMANENT = new Set(["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"]);
+
+const str = (v) => (typeof v === "string" ? v.trim() : "");
+const MAX_PROMPT_CHARS = 150000;
+
+const claudeEngine = {
+  name: "claude",
+
+  async studyPack(lec, chunks, o) {
+    const warnings = [];
+    const parts = [];
+    let used = 0;
+    for (const c of chunks) {
+      const line = `[${c.id}${c.start != null ? " @ " + L.formatTs(c.start) : ""}] ${c.text}`;
+      if (used + line.length > MAX_PROMPT_CHARS) {
+        warnings.push(`Only the first ${parts.length} of ${chunks.length} parts fit in one request to Claude.`);
+        break;
+      }
+      parts.push(line);
+      used += line.length;
+    }
+    const prompt = `You are LectureIQ, a precise teaching assistant that turns lecture transcripts into study material.
+Use only the lecture text below; never add outside facts. Each part starts with its id in brackets.
+
+Lecture title: ${lec.title}
+<lecture>
+${parts.join("\n\n")}
+</lecture>
+
+Reply with only a JSON object with exactly these keys:
+{"title": "short descriptive title",
+ "tldr": "3-4 sentence overview",
+ "sections": [{"heading": "...", "summary": "1-2 sentences", "chunk_ids": [1, 2]}],
+ "key_points": [{"text": "one sentence", "chunk_id": 1}],
+ "terms": [{"term": "...", "definition": "one sentence, as used in the lecture", "chunk_id": 1}],
+ "flashcards": [{"front": "question", "back": "concise answer", "chunk_id": 1}],
+ "quiz": [{"question": "...", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "why", "chunk_id": 1}]}
+Limits: at most ${o.maxKeyPoints} key points, ${o.maxTerms} terms, ${o.maxFlashcards} flashcards and ${o.maxQuiz} quiz questions.
+Sections follow the lecture's order and cover every part. "chunk_id" is the id of the part an item comes from.
+"answer" is the 0-based index of the correct option; make wrong options plausible.`;
+    const raw = await caps.sample.json(prompt, { modelTier: "default" });
+    return normalizePack(raw, lec, chunks, o, warnings);
+  },
+
+  async answer(question, passages) {
+    const excerpts = passages.map((c) => `<excerpt id="${c.id}">\n${c.text}\n</excerpt>`).join("\n\n");
+    const prompt = `Answer the student's question using only these lecture excerpts.
+
+${excerpts}
+
+Question: ${question}
+
+Reply with only a JSON object: {"answer": "...", "citations": [ids of excerpts you used], "grounded": true}.
+If the excerpts don't answer the question, set "grounded" to false and say so in one sentence.`;
+    const raw = await caps.sample.json(prompt, { modelTier: "quick" });
+    const byId = new Map(passages.map((c) => [c.id, c]));
+    const ids = Array.isArray(raw && raw.citations) ? raw.citations.map(Number).filter((i) => byId.has(i)) : [];
+    return {
+      question,
+      answer: str(raw && raw.answer) || L.NOT_COVERED,
+      citations: [...new Set(ids)].map((i) => ({ chunk_id: i, start: byId.get(i).start })),
+      grounded: raw && raw.grounded !== false,
+    };
+  },
+};
+
+function normalizePack(raw, lec, chunks, o, warnings) {
+  if (!raw || typeof raw !== "object") throw { code: "invalid_json" };
+  const starts = new Map(chunks.map((c) => [c.id, c.start]));
+  const cid = (v) => (starts.has(Number(v)) ? Number(v) : null);
+  const at = (id) => (id != null ? starts.get(id) : null);
+  let dropped = 0;
+  const list = (value, make, cap) => {
+    const out = [];
+    for (const item of Array.isArray(value) ? value : []) {
+      const made = item && typeof item === "object" ? make(item) : null;
+      if (made) out.push(made); else dropped += 1;
+    }
+    return out.slice(0, cap);
+  };
+  const sections = list(raw.sections, (s) => {
+    const ids = (Array.isArray(s.chunk_ids) ? s.chunk_ids : []).map(cid).filter((i) => i != null);
+    const known = ids.map(at).filter((v) => v != null);
+    return str(s.heading) && str(s.summary)
+      ? { heading: str(s.heading), summary: str(s.summary), chunk_ids: ids, start: known.length ? Math.min(...known) : null }
+      : null;
+  }, 50);
+  const keyPoints = list(raw.key_points, (p) => (str(p.text) ? { text: str(p.text), chunk_id: cid(p.chunk_id), start: at(cid(p.chunk_id)) } : null), o.maxKeyPoints);
+  const terms = list(raw.terms, (t) => (str(t.term) && str(t.definition) ? { term: str(t.term), definition: str(t.definition), chunk_id: cid(t.chunk_id), start: at(cid(t.chunk_id)) } : null), o.maxTerms);
+  const flashcards = list(raw.flashcards, (c) => (str(c.front) && str(c.back) ? { front: str(c.front), back: str(c.back), chunk_id: cid(c.chunk_id), start: at(cid(c.chunk_id)) } : null), o.maxFlashcards);
+  const quiz = list(raw.quiz, (q) => {
+    const options = Array.isArray(q.options) ? q.options.map(str).filter(Boolean) : [];
+    const answer = Number(q.answer);
+    return str(q.question) && options.length >= 2 && options.length <= 6 && Number.isInteger(answer) && answer >= 0 && answer < options.length
+      ? { question: str(q.question), options, answer, explanation: str(q.explanation), chunk_id: cid(q.chunk_id), start: at(cid(q.chunk_id)) }
+      : null;
+  }, o.maxQuiz);
+  if (dropped) warnings.push(`Dropped ${dropped} malformed item(s) from Claude's reply.`);
+  return {
+    title: lec.title !== "Untitled lecture" ? lec.title : str(raw.title) || lec.title,
+    tldr: str(raw.tldr) || keyPoints.slice(0, 3).map((p) => p.text).join(" "),
+    sections, key_points: keyPoints, terms, flashcards, quiz,
+    engine: "claude",
+    warnings,
+  };
+}
+
+const engineFor = (name) => (name === "claude" && caps.sample ? claudeEngine : L.offlineEngine);
+
+// ---------- intake ----------
+
+const state = { entry: null, cards: [], cardIndex: 0, flipped: false };
+const status = (msg) => { $("#status").textContent = msg; };
+const selectedEngine = () => (document.querySelector('input[name="engine"]:checked') || {}).value || "offline";
+
+function setBusy(busy) {
+  for (const id of ["#analyze", "#sample"]) $(id).disabled = busy;
+}
+
+async function analyzeText(text, title) {
+  const engineName = selectedEngine();
+  setBusy(true);
+  status(engineName === "claude" ? "Asking Claude… this usually takes under a minute." : "Analyzing…");
+  try {
+    const lecture = L.parseTranscript(text, title || "Untitled lecture");
+    L.chunkLecture(lecture);
+    const pack = await engineFor(engineName).studyPack(lecture, lecture.chunks, L.DEFAULT_OPTIONS);
+    const entry = { id: newId(), created_at: new Date().toISOString(), lecture, pack };
+    const saved = saveAll([entry, ...loadAll()]);
+    if (!saved) pack.warnings.push("This browser isn't saving data, so this lecture disappears when you close the page.");
+    status("");
+    show(entry);
+  } catch (err) {
+    if (err instanceof L.TranscriptError) status(err.message[0].toUpperCase() + err.message.slice(1) + ".");
+    else if (err && err.code) {
+      status(claudeMessage(err));
+      if (PERMANENT.has(err.code)) disableClaude(claudeMessage(err));
+    } else status("Something went wrong while analyzing. Try again.");
+  } finally {
+    setBusy(false);
+  }
+}
+
+$("#intake-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = $("#text").value.trim();
+  if (!text) { status("Paste a transcript or choose a file first."); return; }
+  analyzeText(text, $("#title").value.trim());
+});
+$("#sample").addEventListener("click", () => analyzeText(SAMPLE_VTT, SAMPLE_TITLE));
+
+const DROP_LABEL = $("#drop-label").innerHTML;
+async function useFile(file) {
+  if (!file) return;
+  if (file.size > 2000000) { status("That file is over 2 MB. Choose a smaller transcript."); return; }
+  $("#drop-label").textContent = file.name;
+  const title = $("#title").value.trim() || file.name.replace(/\.[^.]+$/, "").replace(/_/g, " ");
+  analyzeText(await file.text(), title);
+}
+const drop = $("#drop");
+drop.addEventListener("click", () => $("#file").click());
+drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#file").click(); } });
+$("#file").addEventListener("change", (e) => useFile(e.target.files[0]));
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); useFile(e.dataTransfer.files[0]); });
+
+for (const radio of document.querySelectorAll('input[name="engine"]')) {
+  radio.addEventListener("change", () => { remember(ENGINE_KEY, selectedEngine()); updatePill(); });
+}
+function updatePill() {
+  $("#engine-pill").textContent = selectedEngine() === "claude" ? "Claude engine" : "offline engine";
+}
+
+$("#new").addEventListener("click", () => {
+  $("#results").hidden = true;
+  $("#intake").hidden = false;
+  $("#file").value = "";
+  $("#drop-label").innerHTML = DROP_LABEL;
+  history.replaceState(null, "", location.pathname + location.search);
+  renderRecent();
+  $("#text").focus();
+});
+
+// ---------- results ----------
+
+function tsButton(chunkId, start) {
+  if (chunkId == null) return null;
+  const label = start != null ? `▶ ${L.formatTs(start)}` : `§${chunkId}`;
+  return h("button", { class: "ts", type: "button", title: "Show in transcript", onclick: () => jumpTo(chunkId) }, label);
+}
+function chunkStart(chunkId) {
+  const chunk = state.entry.lecture.chunks.find((c) => c.id === chunkId);
+  return chunk ? chunk.start : null;
+}
+const itemStart = (item) => (item.start != null ? item.start : chunkStart(item.chunk_id));
+
+function show(entry) {
+  state.entry = entry;
+  const { lecture, pack } = entry;
+  $("#intake").hidden = true;
+  $("#recent").hidden = true;
+  $("#results").hidden = false;
+  history.replaceState(null, "", `#${entry.id}`);
+
+  $("#pack-title").textContent = pack.title;
+  $("#pack-meta").textContent = [
+    `${L.wordCount(L.lectureText(lecture)).toLocaleString()} words`,
+    `${lecture.chunks.length} part${lecture.chunks.length === 1 ? "" : "s"}`,
+    L.hasTimestamps(lecture) ? "timestamped" : "no timestamps",
+    `${pack.engine} engine`,
+  ].join(" · ");
+  $("#tldr").textContent = pack.tldr;
+  $("#export-status").textContent = "";
+
+  const warnings = $("#warnings");
+  warnings.replaceChildren(...pack.warnings.map((w) => h("li", {}, w)));
+  warnings.hidden = pack.warnings.length === 0;
+
+  $("#outline").replaceChildren(...pack.sections.map((s) =>
+    h("li", {},
+      h("div", {}, h("span", { class: "heading" }, s.heading), tsButton(s.chunk_ids[0], s.start)),
+      h("div", { class: "muted" }, s.summary))));
+  $("#points").replaceChildren(...pack.key_points.map((p) => h("li", {}, p.text, tsButton(p.chunk_id, itemStart(p)))));
+  $("#glossary").replaceChildren(...(pack.terms.length
+    ? pack.terms.flatMap((t) => [h("dt", {}, t.term, tsButton(t.chunk_id, itemStart(t))), h("dd", {}, t.definition)])
+    : [h("p", { class: "muted" }, "No glossary terms found.")]));
+
+  state.cards = pack.flashcards.slice();
+  state.cardIndex = 0;
+  state.flipped = false;
+  renderCard();
+  renderQuiz();
+  $("#answers").replaceChildren();
+  renderTranscript();
+  selectTab("outline");
+  window.scrollTo({ top: 0 });
+}
+
+// ---------- exports ----------
+
+const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "lecture";
+
+async function offerFile(filename, data, label) {
+  const note = $("#export-status");
+  if (caps.downloads) {
+    try {
+      await caps.downloads.save({ filename, data });
+      note.textContent = `Saved ${filename}.`;
+      return;
+    } catch (e) {
+      if (e && e.code === "declined") { note.textContent = ""; return; }
+      if (e && e.code === "rate_limited") { note.textContent = "A save is already waiting for you. Finish it, then try again."; return; }
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(data);
+    note.textContent = `Copied the ${label} to your clipboard (saving files isn't available here).`;
+  } catch {
+    note.textContent = `Couldn't save or copy the ${label} in this view.`;
+  }
+}
+$("#dl-md").addEventListener("click", () => offerFile(`${slug(state.entry.pack.title)}.md`, L.toMarkdown(state.entry.pack), "study guide"));
+$("#dl-csv").addEventListener("click", () => {
+  if (!state.entry.pack.flashcards.length) { $("#export-status").textContent = "This lecture has no flashcards to export."; return; }
+  offerFile(`${slug(state.entry.pack.title)}-flashcards.csv`, L.flashcardsCsv(state.entry.pack), "flashcards");
+});
+
+// ---------- tabs ----------
+
+function selectTab(name) {
+  for (const tab of document.querySelectorAll("[role=tab]")) tab.setAttribute("aria-selected", String(tab.dataset.tab === name));
+  for (const panel of document.querySelectorAll(".panel")) panel.hidden = panel.dataset.panel !== name;
+}
+for (const tab of document.querySelectorAll("[role=tab]")) tab.addEventListener("click", () => selectTab(tab.dataset.tab));
+
+// ---------- flashcards ----------
+
+function renderCard() {
+  const empty = state.cards.length === 0;
+  $("#card-empty").hidden = !empty;
+  $("#card-wrap").hidden = empty;
+  if (empty) return;
+  const card = state.cards[state.cardIndex];
+  $("#flashcard").classList.toggle("back", state.flipped);
+  $("#card-face").textContent = state.flipped ? "Answer" : "Question";
+  $("#card-text").textContent = state.flipped ? card.back : card.front;
+  $("#card-count").textContent = `${state.cardIndex + 1} / ${state.cards.length}`;
+}
+function moveCard(step) {
+  if (!state.cards.length) return;
+  state.cardIndex = (state.cardIndex + step + state.cards.length) % state.cards.length;
+  state.flipped = false;
+  renderCard();
+}
+$("#flashcard").addEventListener("click", () => { state.flipped = !state.flipped; renderCard(); });
+$("#card-prev").addEventListener("click", () => moveCard(-1));
+$("#card-next").addEventListener("click", () => moveCard(1));
+$("#card-shuffle").addEventListener("click", () => {
+  for (let i = state.cards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [state.cards[i], state.cards[j]] = [state.cards[j], state.cards[i]];
+  }
+  state.cardIndex = 0;
+  state.flipped = false;
+  renderCard();
+});
+document.addEventListener("keydown", (e) => {
+  const onCards = !document.querySelector('[data-panel="cards"]').hidden && !$("#results").hidden;
+  if (!onCards || ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+  if (e.key === "ArrowRight") moveCard(1);
+  else if (e.key === "ArrowLeft") moveCard(-1);
+  else if (e.key === " " && document.activeElement !== $("#flashcard")) { e.preventDefault(); state.flipped = !state.flipped; renderCard(); }
+});
+
+// ---------- quiz ----------
+
+function renderQuiz() {
+  const quiz = state.entry.pack.quiz;
+  $("#quiz-score").textContent = "";
+  $("#quiz-check").hidden = $("#quiz-reset").hidden = quiz.length === 0;
+  if (!quiz.length) { $("#quiz").replaceChildren(h("p", { class: "muted" }, "No quiz questions for this lecture.")); return; }
+  $("#quiz").replaceChildren(...quiz.map((q, qi) =>
+    h("div", { class: "question" },
+      h("fieldset", {},
+        h("legend", {}, `${qi + 1}. ${q.question}`),
+        ...q.options.map((opt, oi) => h("label", { class: "option" }, h("input", { type: "radio", name: `q${qi}`, value: String(oi), id: `q${qi}-${oi}` }), h("span", {}, opt))),
+        h("p", { class: "explanation", hidden: true }, q.explanation, tsButton(q.chunk_id, itemStart(q)))))));
+}
+$("#quiz-check").addEventListener("click", () => {
+  const quiz = state.entry.pack.quiz;
+  let correct = 0;
+  quiz.forEach((q, qi) => {
+    const block = $("#quiz").children[qi];
+    const chosen = block.querySelector(`input[name="q${qi}"]:checked`);
+    block.querySelectorAll(".option").forEach((label, oi) => {
+      label.classList.toggle("correct", oi === q.answer);
+      label.classList.toggle("wrong", chosen != null && Number(chosen.value) === oi && oi !== q.answer);
+    });
+    block.querySelector(".explanation").hidden = false;
+    if (chosen && Number(chosen.value) === q.answer) correct += 1;
+  });
+  $("#quiz-score").textContent = `Score: ${correct} / ${quiz.length}`;
+});
+$("#quiz-reset").addEventListener("click", renderQuiz);
+
+// ---------- ask ----------
+
+$("#ask-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = $("#question");
+  const question = input.value.trim();
+  if (!question) return;
+  input.value = "";
+  const engine = engineFor(state.entry.pack.engine);
+  const pending = h("div", { class: "qa" }, h("div", { class: "q" }, question),
+    h("div", { class: "thinking" }, engine === claudeEngine ? "Asking Claude…" : "Thinking…"));
+  $("#answers").prepend(pending);
+  try {
+    const answer = await L.ask(state.entry.lecture, question, engine);
+    pending.replaceWith(h("div", { class: `qa${answer.grounded ? "" : " ungrounded"}` },
+      h("div", { class: "q" }, answer.question),
+      h("div", { class: "a" }, answer.answer),
+      h("div", {}, answer.citations.map((c) => tsButton(c.chunk_id, c.start)))));
+  } catch (err) {
+    pending.querySelector(".thinking").textContent = err && err.code ? claudeMessage(err) : "Couldn't answer that. Try again.";
+  }
+});
+
+// ---------- transcript ----------
+
+function renderTranscript() {
+  $("#transcript").replaceChildren(...state.entry.lecture.chunks.map((c) =>
+    h("div", { class: "chunk", id: `chunk-${c.id}` },
+      h("div", { class: "chunk-head" }, c.start != null ? `Part ${c.id} · ${L.formatTs(c.start)}–${L.formatTs(c.end)}` : `Part ${c.id}`),
+      h("div", {}, c.text))));
+}
+function jumpTo(chunkId) {
+  selectTab("transcript");
+  const el = document.getElementById(`chunk-${chunkId}`);
+  if (!el) return;
+  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
+  el.classList.add("flash");
+  setTimeout(() => el.classList.remove("flash"), 1600);
+}
+
+// ---------- your lectures ----------
+
+function renderRecent() {
+  const items = loadAll();
+  $("#recent").hidden = items.length === 0 || !$("#results").hidden;
+  $("#recent-list").replaceChildren(...items.map((item) => {
+    const when = new Date(item.created_at).toLocaleString();
+    const words = L.wordCount(L.lectureText(item.lecture)).toLocaleString();
+    const del = h("button", { class: "delete", type: "button" }, "Delete");
+    del.addEventListener("click", () => {
+      if (!del.classList.contains("confirm")) {
+        del.classList.add("confirm");
+        del.textContent = "Confirm delete";
+        setTimeout(() => { del.classList.remove("confirm"); del.textContent = "Delete"; }, 4000);
+        return;
+      }
+      saveAll(loadAll().filter((x) => x.id !== item.id));
+      renderRecent();
+    });
+    return h("li", {},
+      h("div", {},
+        h("button", { class: "open", type: "button", onclick: () => show(item) }, item.pack.title),
+        h("div", { class: "meta" }, `${when} · ${words} words · ${item.pack.engine}`)),
+      del);
+  }));
+}
+
+// ---------- boot ----------
+
+function disableClaude(note) {
+  const radio = $("#engine-claude");
+  radio.disabled = true;
+  if (radio.checked) { $("#engine-offline").checked = true; remember(ENGINE_KEY, "offline"); }
+  $("#claude-note").textContent = note;
+  updatePill();
+}
+
+(function boot() {
+  const id = location.hash.slice(1);
+  const entry = id && loadAll().find((x) => x.id === id);
+  if (entry) show(entry);
+  else renderRecent();
+})();
+
+(async () => {
+  const use = window.claude && typeof window.claude.use === "function" ? window.claude.use.bind(window.claude) : null;
+  const [sample, downloads] = use
+    ? await Promise.all([use("sample").catch(() => null), use("downloads").catch(() => null)])
+    : [null, null];
+  caps.sample = sample;
+  caps.downloads = downloads;
+  if (sample) {
+    $("#engine-claude").disabled = false;
+    $("#claude-note").textContent = "Uses your Claude account";
+    if (recall(ENGINE_KEY) === "claude") $("#engine-claude").checked = true;
+  } else {
+    $("#claude-note").textContent = "Not available in this view";
+  }
+  updatePill();
+})();
+</script>

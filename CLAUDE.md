@@ -70,7 +70,14 @@ tests/             one module per area (test_lectureiq_* for LectureIQ); conftes
                    network guard, make_ctx, and sample_vtt fixtures
 examples/suite.yaml  runs green offline with the fake provider; used by tests and CI
 examples/lectureiq_qa.yaml  grades LectureIQ (offline engine) on the sample lecture; CI gate
+demo/              the hosted single-page demo: lectureiq-core.js (JS port of transcript parsing,
+                   chunking, BM25, OfflineEngine, exports), page.html, build.py -> demo/dist/
 ```
+
+**The demo is a port.** If you change `transcript.py`, `text.py`, `retrieval.py`, `offline.py`
+or `export.py`, make the same change in `demo/lectureiq-core.js`. `tests/test_demo_port.py`
+(needs Node) fails if the two engines' study packs differ or the port fails the QA suite.
+Rebuild with `python demo/build.py`. The live artifact is republished from that output.
 
 ## Conventions
 
