@@ -203,6 +203,10 @@ class TestOfflineEngine:
         for q in pack.quiz:
             assert len(set(q.options)) == len(q.options) >= 2
         overfit = next(t for t in pack.terms if t.term == "Overfitting")
+        assert overfit.start == 432.0  # the defining cue's own time, not the chunk's
+        assert all(k.start is not None for k in pack.key_points)
+        card = next(c for c in pack.flashcards if "Overfitting" in c.front)
+        assert card.start == 432.0
         q = next(q for q in pack.quiz if "Overfitting" in q.question)
         assert q.options[q.answer] == overfit.definition
 

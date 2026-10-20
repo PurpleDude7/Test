@@ -15,18 +15,24 @@ class Section(BaseModel):
 class KeyPoint(BaseModel):
     text: str
     chunk_id: int | None = None
+    start: float | None = None
+    """When it was said, if known more precisely than the chunk's start."""
 
 
 class Term(BaseModel):
     term: str
     definition: str
     chunk_id: int | None = None
+    start: float | None = None
+    """When it was said, if known more precisely than the chunk's start."""
 
 
 class Flashcard(BaseModel):
     front: str
     back: str
     chunk_id: int | None = None
+    start: float | None = None
+    """When it was said, if known more precisely than the chunk's start."""
 
 
 class QuizQuestion(BaseModel):
@@ -35,6 +41,8 @@ class QuizQuestion(BaseModel):
     answer: int = Field(ge=0, description="index of the correct option")
     explanation: str = ""
     chunk_id: int | None = None
+    start: float | None = None
+    """When it was said, if known more precisely than the chunk's start."""
 
     @model_validator(mode="after")
     def _answer_in_range(self) -> QuizQuestion:

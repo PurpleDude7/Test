@@ -48,6 +48,8 @@ jobs:
         run: evalkit run examples/suite.yaml --provider fake --report report.html --report report.json
       - name: LectureIQ smoke test (offline engine)
         run: lectureiq analyze @sample --markdown study-guide.md --json study-pack.json
+      - name: Grade LectureIQ with evalkit (offline engine)
+        run: evalkit run examples/lectureiq_qa.yaml --report lectureiq-qa.html
       - uses: actions/upload-artifact@v4
         if: always() && matrix.python-version == '3.11'
         with:
@@ -56,4 +58,5 @@ jobs:
             report.*
             study-guide.md
             study-pack.json
+            lectureiq-qa.html
           if-no-files-found: ignore

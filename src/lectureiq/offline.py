@@ -40,6 +40,7 @@ _MAX_POINT_WORDS = 45
 _MIN_DEFINITION_WORDS = 4
 _DEFINITION_BONUS = 1.3  # definitional sentences make better summaries and key points
 _TLDR_SENTENCES = 4
+_DEFINES_TERM_BONUS = 2.0
 
 
 def _rng(seed: str) -> random.Random:
@@ -54,6 +55,7 @@ class OfflineEngine:
         self, lecture: Lecture, chunks: Sequence[Chunk], options: PackOptions
     ) -> StudyPack:
         freq = Counter(content_words(lecture.text))
+        by_id = {c.id: c for c in chunks}
         scored = [
             (self._score(s, freq), chunk.id, s)
             for chunk in chunks
@@ -67,7 +69,8 @@ class OfflineEngine:
             return sorted(items, key=lambda t: order[id(t)])
 
         key_points = [
-            KeyPoint(text=s, chunk_id=cid) for _, cid, s in in_order(best[: options.max_key_points])
+            KeyPoint(text=s, chunk_id=cid, start=by_id[cid].time_of(s))
+            for _, cid, s in in_order(best[: options.max_key_points])
         ]
         # One leading sentence per part of the lecture reads better than the global top 3.
         per_chunk: dict[int, tuple[float, int, str]] = {}
@@ -92,14 +95,14 @@ class OfflineEngine:
         wanted = set(content_words(question))
         ranked = sorted(
             (
-                (len(wanted & set(content_words(s))), -rank, chunk, s)
+                (self._relevance(s, wanted), -rank, chunk, s)
                 for rank, chunk in enumerate(passages)
                 for s in sentences(chunk.text) or [chunk.text]
             ),
             key=lambda t: (t[0], t[1]),
             reverse=True,
         )
-        hits = [(chunk, s) for overlap, _, chunk, s in ranked[:2] if overlap]
+        hits = [(chunk, s) for relevance, _, chunk, s in ranked[:2] if relevance]
         if not hits:
             return Answer(
                 question=question,
@@ -116,6 +119,18 @@ class OfflineEngine:
             answer=" ".join(s for _, s in hits),
             citations=list(citations.values()),
         )
+
+    @staticmethod
+    def _relevance(sentence: str, wanted: set[str]) -> float:
+        """Word overlap with the question, plus a bonus when the sentence defines the very
+        term asked about ("What is gradient descent?" -> "Gradient descent is ...")."""
+        overlap = len(wanted & set(content_words(sentence)))
+        match = _DEFINITION.match(sentence.strip())
+        if overlap and match:
+            term = set(content_words(match["term"]))
+            if term and term <= wanted:
+                return overlap + _DEFINES_TERM_BONUS
+        return float(overlap)
 
     @staticmethod
     def _score(sentence: str, freq: Counter[str]) -> float:
@@ -158,6 +173,7 @@ class OfflineEngine:
                         term=term[0].upper() + term[1:],
                         definition=definition[0].upper() + definition[1:],
                         chunk_id=chunk.id,
+                        start=chunk.time_of(sentence),
                     )
         return list(found.values())
 
@@ -176,7 +192,12 @@ class OfflineEngine:
         self, terms: list[Term], points: list[KeyPoint], freq: Counter[str]
     ) -> list[Flashcard]:
         cards = [
-            Flashcard(front=f"What is meant by “{t.term}”?", back=t.definition, chunk_id=t.chunk_id)
+            Flashcard(
+                front=f"What is meant by “{t.term}”?",
+                back=t.definition,
+                chunk_id=t.chunk_id,
+                start=t.start,
+            )
             for t in terms
         ]
         for point in points:
@@ -187,6 +208,7 @@ class OfflineEngine:
                         front=f"Fill in the blank: {blanked[0]}",
                         back=blanked[1],
                         chunk_id=point.chunk_id,
+                        start=point.start,
                     )
                 )
         return cards
@@ -207,6 +229,7 @@ class OfflineEngine:
                     answer=options.index(term.definition),
                     explanation=f"{term.term}: {term.definition}.",
                     chunk_id=term.chunk_id,
+                    start=term.start,
                 )
             )
         vocabulary = [w for w, _ in freq.most_common(40)]
@@ -228,6 +251,7 @@ class OfflineEngine:
                     answer=options.index(word),
                     explanation=point.text,
                     chunk_id=point.chunk_id,
+                    start=point.start,
                 )
             )
         return quiz

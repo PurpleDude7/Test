@@ -10,7 +10,7 @@ from lectureiq.llm import LLMEngine
 from lectureiq.models import StudyPack
 from lectureiq.offline import OfflineEngine
 from lectureiq.sample import SAMPLE_TITLE
-from lectureiq.store import LectureStore
+from lectureiq.store import MemoryStore
 from lectureiq.transcript import Lecture, Segment
 from lectureiq.web import app as web
 
@@ -34,7 +34,13 @@ def test_index_and_static_assets(client: TestClient) -> None:
 
 
 def test_health(client: TestClient) -> None:
-    assert client.get("/api/health").json() == {"status": "ok", "engine": "offline", "model": None}
+    assert client.get("/api/health").json() == {
+        "status": "ok",
+        "engine": "offline",
+        "model": None,
+        "audio": False,
+        "persistent": False,
+    }
 
 
 def test_sample_round_trip(client: TestClient) -> None:
@@ -134,7 +140,7 @@ def test_generation_failures_return_502() -> None:
 
 
 def test_store_evicts_least_recently_used() -> None:
-    store = LectureStore(capacity=2)
+    store = MemoryStore(capacity=2)
     pack = StudyPack(title="t", tldr="x", engine="offline")
     lecture = Lecture(title="t", segments=[Segment("x")])
     a, b = store.add(lecture, pack), store.add(lecture, pack)

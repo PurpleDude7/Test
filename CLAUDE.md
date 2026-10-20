@@ -4,9 +4,10 @@ Guidance for AI assistants (and humans) working on this repo. It holds two packa
 and tested together:
 
 - **evalkit** (`src/evalkit/`): a library and CLI for evaluating LLM outputs.
-- **LectureIQ** (`src/lectureiq/`): an app that turns lecture transcripts into study
-  material. It uses evalkit's providers and response cache, and its web dependencies
-  (Starlette, uvicorn, python-multipart) are the optional `lectureiq` extra.
+- **LectureIQ** (`src/lectureiq/`): an app that turns lecture transcripts and recordings into
+  study material. It uses evalkit's providers and response cache, and its web dependencies
+  (Starlette, uvicorn, python-multipart) are the optional `lectureiq` extra. It is also an
+  evalkit provider (`lectureiq`, via an entry point), and `examples/lectureiq_qa.yaml` grades it.
 
 User-facing docs live in [README.md](README.md); this file covers how to work on the code.
 
@@ -20,7 +21,9 @@ ruff check . && ruff format --check .   # lint + format check (ruff format . to 
 mypy                               # strict type check of src/ and tests/
 evalkit run examples/suite.yaml --provider fake --report out.html   # end-to-end smoke test
 lectureiq analyze @sample          # LectureIQ smoke test (offline engine, bundled lecture)
-lectureiq serve                    # web app on http://127.0.0.1:8000
+evalkit run examples/lectureiq_qa.yaml   # grade LectureIQ's answers (needs the entry point:
+                                         # pip install -e ".[dev]")
+lectureiq serve --db lectures.db   # web app on http://127.0.0.1:8000, lectures kept in SQLite
 ```
 
 CI (`.github/workflows/ci.yml`) runs ruff, ruff format, and mypy on 3.11, then pytest and
@@ -46,7 +49,9 @@ src/evalkit/
   cli.py           argparse (run, compare, validate, list); exit codes 0 = gate passed,
                    1 = below threshold or regressed vs --baseline, 2 = usage/config error
 src/lectureiq/
-  transcript.py    parse SRT/WebVTT/plain text -> Lecture; chunk_lecture -> timestamped Chunks
+  transcript.py    parse SRT/WebVTT/plain text -> Lecture; chunk_lecture -> timestamped Chunks;
+                   lecture_to_dict / lecture_from_dict for persistence
+  audio.py         WhisperTranscriber (OpenAI-compatible /audio/transcriptions, verbose_json)
   engines.py       Engine protocol (study_pack, answer) + PackOptions caps
   offline.py       OfflineEngine: extractive heuristics, deterministic, no model
   llm.py           LLMEngine: per-chunk JSON notes (map) + outline synthesis (reduce), with
@@ -54,15 +59,17 @@ src/lectureiq/
   retrieval.py     BM25Index over chunks (used by ask)
   pipeline.py      analyze(), ask(), make_engine() ("offline" or any evalkit provider)
   models.py        StudyPack, Section, KeyPoint, Term, Flashcard, QuizQuestion, Answer, Citation
-  export.py        to_markdown(), flashcards_csv()
-  store.py         bounded in-memory LectureStore for the web app
+  export.py        to_markdown(), flashcards_csv(), to_vtt()
+  store.py         Store protocol; MemoryStore (bounded LRU) and SQLiteStore (one row per lecture)
+  evalkit_provider.py  LectureIQProvider: answers evalkit cases from a lecture, adds "Sources:"
   web/app.py       Starlette app factory create_app(engine); JSON API under /api
   web/static/      index.html, app.js, style.css (vanilla JS, no build step)
   samples/         intro_to_ml.vtt, the bundled demo lecture (`@sample` in the CLI)
-  cli.py           lectureiq analyze | ask | serve
+  cli.py           lectureiq analyze | ask | transcribe | serve
 tests/             one module per area (test_lectureiq_* for LectureIQ); conftest.py has the
                    network guard, make_ctx, and sample_vtt fixtures
 examples/suite.yaml  runs green offline with the fake provider; used by tests and CI
+examples/lectureiq_qa.yaml  grades LectureIQ (offline engine) on the sample lecture; CI gate
 ```
 
 ## Conventions
@@ -88,7 +95,8 @@ examples/suite.yaml  runs green offline with the fake provider; used by tests an
   `app.js`), never `innerHTML`; transcripts and model output are untrusted. No build step and
   no CDN dependencies: keep it plain HTML, CSS, and JS.
 - **LectureIQ engines** implement both `study_pack()` and `answer()`. Every generated item
-  carries a `chunk_id` so the UI can link it to the transcript. Model output is untrusted
+  carries a `chunk_id` (and a precise `start` when the engine knows the source sentence) so
+  the UI can link it to the transcript. Model output is untrusted
   JSON: validate it with pydantic, drop bad items, and record a warning instead of failing.
 
 ## Adding things
@@ -120,6 +128,12 @@ provider table.
   API with `starlette.testclient.TestClient`. The pytest config ignores two deprecation
   warnings raised inside Starlette's test client (anyio alias, httpx -> httpx2); don't widen
   those filters.
+- Audio: never call a real transcription API in tests. Use a stub with a `transcribe()` method
+  for the web API and CLI (monkeypatch `lectureiq.cli.make_transcriber`), and
+  `httpx.MockTransport` for `WhisperTranscriber` itself.
+- If you change the offline engine or the sample lecture, run `examples/lectureiq_qa.yaml`.
+  `tests/test_lectureiq_features.py` runs it too, and checks that it still catches a known
+  regression.
 - If you change `examples/suite.yaml`, keep it passing with `--provider fake`; tests and CI
   depend on it.
 - Bug fixes come with a test that fails without the fix.

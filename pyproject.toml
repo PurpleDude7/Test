@@ -28,12 +28,12 @@ dependencies = [
 embeddings = ["sentence-transformers>=2.7"]
 lectureiq = [
     "python-multipart>=0.0.9",
-    "starlette>=0.37",
+    "starlette>=0.40",
     "uvicorn>=0.29",
 ]
 dev = [
     "python-multipart>=0.0.9",
-    "starlette>=0.37",
+    "starlette>=0.40",
     "uvicorn>=0.29",
     "mypy>=1.10",
     "pytest>=8.0",
@@ -44,6 +44,10 @@ dev = [
 [project.scripts]
 evalkit = "evalkit.cli:main"
 lectureiq = "lectureiq.cli:main"
+
+# Lets `evalkit run` use LectureIQ as a provider (see examples/lectureiq_qa.yaml).
+[project.entry-points."evalkit.providers"]
+lectureiq = "lectureiq.evalkit_provider:LectureIQProvider"
 
 [tool.hatch.version]
 path = "src/evalkit/__init__.py"

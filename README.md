@@ -16,8 +16,9 @@ command exits nonzero when the pass rate drops below a threshold, so it can gate
 - **Small footprint:** `httpx`, `pydantic`, `PyYAML`. Python 3.11+, fully type-hinted.
 
 The repo also contains **[LectureIQ](#lectureiq)**, an app built on evalkit's providers
-that turns lecture transcripts into study material: outline, glossary, flashcards, a quiz,
-and answers that cite the lecture.
+that turns lecture transcripts and recordings into study material: outline, glossary,
+flashcards, a quiz, and answers that cite the lecture. evalkit also grades LectureIQ's answers
+in CI ([`examples/lectureiq_qa.yaml`](examples/lectureiq_qa.yaml)).
 
 ## Quickstart
 
@@ -313,14 +314,18 @@ evalkit's providers, so any OpenAI-compatible API or Anthropic can power it.
 pip install -e ".[lectureiq]"
 
 lectureiq serve                         # http://127.0.0.1:8000, offline engine, no API key
+lectureiq serve --db lectures.db        # keep lectures across restarts (SQLite)
+lectureiq serve --transcribe            # also accept recordings (Whisper; reads OPENAI_API_KEY)
 lectureiq serve --provider anthropic    # LLM engine (reads ANTHROPIC_API_KEY)
 lectureiq serve --provider openai -m gpt-4o-mini --cache .evalkit-cache
 lectureiq serve --provider openai -O base_url=http://localhost:11434/v1 -O api_key=unused \
     -m llama3.1                         # a local model through Ollama
 ```
 
-In the browser, paste a transcript or drop a `.txt`, `.md`, `.srt` or `.vtt` file (or click
-**Try the sample lecture**). You get:
+In the browser, paste a transcript or drop a `.txt`, `.md`, `.srt` or `.vtt` file, or a
+recording (`.mp3`, `.m4a`, `.wav`, `.webm`, ...) when the server runs with `--transcribe`. You
+can also click **Try the sample lecture**. Recent lectures are listed on the home page with
+Open and Delete. You get:
 
 | Tab | What it shows |
 | --- | --- |
@@ -333,7 +338,7 @@ In the browser, paste a transcript or drop a `.txt`, `.md`, `.srt` or `.vtt` fil
 | Transcript | The lecture in parts, highlighted when you follow a citation |
 
 The study guide downloads as Markdown and the flashcards as CSV (Anki's *File → Import*
-accepts it as is).
+accepts it as is). Transcribed lectures can also be downloaded as WebVTT subtitles.
 
 The same features work from the command line:
 
@@ -342,7 +347,47 @@ lectureiq analyze lecture.vtt --markdown guide.md --csv cards.csv --json pack.js
 lectureiq analyze @sample                          # the bundled demo lecture
 lectureiq ask lecture.vtt "Why do we need a test set?"
 cat notes.txt | lectureiq analyze - --title "Week 3"
+
+lectureiq transcribe week3.m4a                      # -> week3.vtt (timestamped transcript)
+lectureiq analyze week3.m4a --transcribe            # transcribe, then build the study pack
 ```
+
+### Recordings
+
+`--transcribe` sends audio to an OpenAI-compatible `/audio/transcriptions` endpoint and asks
+for segment timestamps (`verbose_json`), so a transcribed lecture gets the same timestamp
+links as a `.vtt` file. The default is OpenAI's `whisper-1` (up to 25 MB per file). To use a
+self-hosted Whisper server that speaks the same API, pass `--transcribe-url` and
+`--transcribe-model`, plus `--transcribe-key-env` for the variable holding its key. If a
+server only returns plain text, the lecture still works without timestamps.
+`--language en` skips language detection.
+
+### Saving lectures
+
+Without `--db`, the server keeps the 50 most recent lectures in memory. With
+`--db lectures.db`, each lecture's parsed transcript and study pack go into one SQLite file,
+so the recent-lectures list, Ask and the exports work after a restart. The file is plain
+SQLite (WAL mode): back it up by copying it while the server is stopped.
+
+### Grading LectureIQ with evalkit
+
+LectureIQ registers itself as an evalkit provider named `lectureiq`, so evalkit suites can
+grade its answers. [`examples/lectureiq_qa.yaml`](examples/lectureiq_qa.yaml) asks ten
+questions about the sample lecture. It checks that answers lead with the right definition,
+contain the key facts, cite the right timestamps, and decline off-topic questions:
+
+```bash
+evalkit run examples/lectureiq_qa.yaml                          # offline engine
+evalkit run examples/lectureiq_qa.yaml --provider lectureiq-claude --report qa.html
+evalkit run examples/lectureiq_qa.yaml --report qa.json         # save a baseline...
+evalkit run examples/lectureiq_qa.yaml --baseline qa.json       # ...and catch regressions
+```
+
+The provider's options are `transcript` (a path or `@sample`), `engine` (`offline` or any
+evalkit provider), `model`, `engine_options`, `chunk_words`, `k` (passages per question) and
+`cite` (append a `Sources: m:ss` line). CI runs the suite on every push. It has already
+caught a bug: "What are hyperparameters?" was answered with a recap sentence that only
+mentioned the word, instead of the sentence that defines it.
 
 ### Engines
 
@@ -362,29 +407,34 @@ cat notes.txt | lectureiq analyze - --title "Week 3"
 
 | Method and path | Purpose |
 | --- | --- |
-| `POST /api/lectures` | Analyze a transcript: JSON `{"text", "title"}`, or a form with `file` or `text` |
+| `GET /api/lectures` | Recent lectures (id, title, date, words, engine) |
+| `POST /api/lectures` | Analyze a transcript or, with `--transcribe`, a recording: JSON `{"text", "title"}`, or a form with `file` or `text` |
 | `POST /api/lectures/sample` | Analyze the bundled sample lecture |
 | `GET /api/lectures/{id}` | The lecture's parts and study pack |
+| `DELETE /api/lectures/{id}` | Delete a lecture |
 | `POST /api/lectures/{id}/ask` | `{"question": "..."}` returns an answer with citations |
 | `GET /api/lectures/{id}/export.md` | Markdown study guide |
 | `GET /api/lectures/{id}/flashcards.csv` | Flashcards as CSV |
-| `GET /api/health` | Engine and model in use |
+| `GET /api/lectures/{id}/transcript.vtt` | Transcript as WebVTT (timestamped lectures only) |
+| `GET /api/health` | Engine, model, and whether audio and persistence are on |
 
-Lectures are kept in memory (the 50 most recent), so restarting the server clears them.
-Uploads are capped at 2 MB.
+Transcript uploads are capped at 2 MB, and recordings at 25 MB.
 
 ### How it fits together
 
 ```text
 transcript.py   parse SRT / WebVTT / plain text -> Lecture -> timestamped Chunks
+audio.py        WhisperTranscriber: recordings -> timestamped segments
 engines.py      Engine protocol + PackOptions (caps on how much to generate)
 offline.py      OfflineEngine: extractive, deterministic, no model
 llm.py          LLMEngine: map chunks -> JSON notes, reduce -> outline; answers with citations
 retrieval.py    BM25 over chunks for "ask"
 pipeline.py     analyze(), ask(), make_engine() (evalkit provider + optional response cache)
-export.py       Markdown study guide, Anki CSV
+export.py       Markdown study guide, Anki CSV, WebVTT
+store.py        MemoryStore / SQLiteStore for the web app
+evalkit_provider.py   LectureIQ as an evalkit provider (entry point `lectureiq`)
 web/            Starlette app + static index.html / app.js / style.css
-cli.py          lectureiq analyze | ask | serve
+cli.py          lectureiq analyze | ask | transcribe | serve
 ```
 
 ## Development

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from lectureiq.errors import TranscriptError
 
@@ -166,3 +167,47 @@ def chunk_lecture(lecture: Lecture, max_words: int = 300) -> list[Chunk]:
     flush()
     lecture.chunks = chunks
     return chunks
+
+
+def _segment_dict(segment: Segment) -> dict[str, Any]:
+    return {"text": segment.text, "start": segment.start, "end": segment.end}
+
+
+def _segment(data: dict[str, Any]) -> Segment:
+    return Segment(text=str(data["text"]), start=data.get("start"), end=data.get("end"))
+
+
+def lecture_to_dict(lecture: Lecture) -> dict[str, Any]:
+    """JSON-safe form of a lecture, chunks included, for persistence."""
+    return {
+        "title": lecture.title,
+        "segments": [_segment_dict(s) for s in lecture.segments],
+        "chunks": [
+            {
+                "id": c.id,
+                "text": c.text,
+                "start": c.start,
+                "end": c.end,
+                "segments": [_segment_dict(s) for s in c.segments],
+            }
+            for c in lecture.chunks
+        ],
+    }
+
+
+def lecture_from_dict(data: dict[str, Any]) -> Lecture:
+    chunks = [
+        Chunk(
+            id=int(c["id"]),
+            text=str(c["text"]),
+            start=c.get("start"),
+            end=c.get("end"),
+            segments=tuple(_segment(s) for s in c.get("segments", [])),
+        )
+        for c in data.get("chunks", [])
+    ]
+    return Lecture(
+        title=str(data["title"]),
+        segments=[_segment(s) for s in data["segments"]],
+        chunks=chunks,
+    )

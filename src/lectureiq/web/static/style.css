@@ -152,6 +152,18 @@ button:disabled { opacity: 0.6; cursor: progress; }
 .qa.ungrounded .a { color: var(--muted); font-style: italic; }
 .thinking { color: var(--muted); }
 
+.recent { list-style: none; margin: 0; padding: 0; }
+.recent li {
+  display: flex; gap: 10px; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+.recent li:first-child { border-top: 0; }
+.recent .open {
+  border: 0; background: none; padding: 0; text-align: left; font-size: 15px; color: var(--accent);
+}
+.recent .meta { font-size: 13px; color: var(--muted); }
+.recent .delete { font-size: 13px; padding: 4px 10px; }
+
 .chunk { padding: 12px 14px; border-radius: 8px; margin-bottom: 8px; border: 1px solid transparent; }
 .chunk .chunk-head { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
 .chunk.flash { border-color: var(--accent); background: var(--accent-soft); transition: background 1.5s; }

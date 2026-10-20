@@ -6,7 +6,7 @@ import csv
 import io
 
 from lectureiq.models import StudyPack
-from lectureiq.transcript import format_ts
+from lectureiq.transcript import Lecture, format_ts
 
 
 def _at(start: float | None) -> str:
@@ -49,3 +49,24 @@ def flashcards_csv(pack: StudyPack) -> str:
     for card in pack.flashcards:
         writer.writerow([card.front, card.back])
     return buf.getvalue()
+
+
+def _vtt_ts(seconds: float) -> str:
+    millis = round(seconds * 1000)
+    hours, rest = divmod(millis, 3_600_000)
+    minutes, rest = divmod(rest, 60_000)
+    secs, ms = divmod(rest, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}.{ms:03d}"
+
+
+def to_vtt(lecture: Lecture) -> str:
+    """WebVTT for a timestamped lecture (e.g. one transcribed from audio)."""
+    if not lecture.has_timestamps:
+        raise ValueError("lecture has no timestamps")
+    cues = ["WEBVTT", ""]
+    for s in lecture.segments:
+        if s.start is None:
+            continue
+        end = s.end if s.end is not None and s.end > s.start else s.start + 1
+        cues += [f"{_vtt_ts(s.start)} --> {_vtt_ts(end)}", s.text, ""]
+    return "\n".join(cues)

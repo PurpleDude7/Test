@@ -1,0 +1,98 @@
+# Grades LectureIQ's "ask the lecture" answers about the bundled sample lecture.
+#   evalkit run examples/lectureiq_qa.yaml                       # offline engine, no API key
+#   evalkit run examples/lectureiq_qa.yaml --provider lectureiq-claude --report qa.html
+# Needs `pip install -e ".[lectureiq]"` so evalkit can find the `lectureiq` provider.
+name: lectureiq-qa
+description: Answers are correct, lead with the definition asked for, cite timestamps, and
+  decline questions the lecture doesn't cover.
+threshold: 0.9
+
+provider: lectureiq
+providers:
+  lectureiq:
+    transcript: "@sample"
+    engine: offline
+  # The same questions answered by the LLM engine.
+  lectureiq-claude:
+    type: lectureiq
+    transcript: "@sample"
+    engine: anthropic
+    model: claude-opus-5-5
+
+defaults:
+  scorers:
+    - type: regex # every grounded answer must cite at least one timestamp
+      pattern: 'Sources: \d+:\d{2}'
+
+cases:
+  - id: define-overfitting
+    input: What is overfitting?
+    tags: [definition]
+    scorers:
+      - { type: regex, pattern: '^Overfitting is', ignore_case: true }
+      - { type: contains, value: [memorizes, unseen] }
+      - { type: regex, pattern: 'Sources: 7:12' }
+
+  - id: define-gradient-descent
+    input: What is gradient descent?
+    tags: [definition]
+    scorers:
+      - { type: regex, pattern: '^Gradient descent is', ignore_case: true }
+      - { type: contains, value: [reduces the loss] }
+      - { type: regex, pattern: 'Sources: \d+:\d{2}' }
+
+  - id: define-hyperparameters
+    input: What are hyperparameters?
+    tags: [definition]
+    scorers:
+      - { type: regex, pattern: '^Hyperparameters are', ignore_case: true }
+      - { type: regex, pattern: 'Sources: \d+:\d{2}' }
+
+  - id: define-clustering
+    input: What is clustering?
+    tags: [definition]
+    scorers:
+      - { type: contains, value: [groups examples, similar] }
+      - { type: regex, pattern: 'Sources: \d+:\d{2}' }
+
+  - id: learning-rate
+    input: What does the learning rate control?
+    tags: [concept]
+    scorers:
+      - { type: contains, value: how big each nudge }
+      - { type: regex, pattern: 'Sources: 6:12' }
+
+  - id: test-set
+    input: What is the test set used for?
+    tags: [concept]
+    scorers:
+      - { type: contains, value: [held-out, real-world performance] }
+      - { type: regex, pattern: 'Sources: \d+:\d{2}' }
+
+  - id: labels
+    input: What is a label in supervised learning?
+    tags: [definition]
+    scorers:
+      - { type: contains, value: [answer we want the model to predict] }
+      - { type: regex, pattern: 'Sources: \d+:\d{2}' }
+
+  - id: homework
+    input: What reading was assigned for next week?
+    tags: [logistics]
+    scorers:
+      - { type: contains, value: chapter two }
+      - { type: regex, pattern: 'Sources: 12:\d{2}' }
+
+  - id: off-topic-art
+    input: Who painted the Mona Lisa?
+    tags: [refusal]
+    scorers:
+      - { type: contains, value: "doesn't seem to cover" }
+      - { type: regex, pattern: 'Sources:', negate: true }
+
+  - id: off-topic-cooking
+    input: How long should sourdough bread proof?
+    tags: [refusal]
+    scorers:
+      - { type: contains, value: "doesn't seem to cover" }
+      - { type: regex, pattern: 'Sources:', negate: true }

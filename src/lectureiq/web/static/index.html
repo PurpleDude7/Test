@@ -18,8 +18,10 @@
     <section id="intake" class="card">
       <h1>Turn a lecture into a study kit</h1>
       <p class="muted">Paste a transcript or drop a <code>.txt</code>, <code>.md</code>,
-        <code>.srt</code> or <code>.vtt</code> file. You get an outline, key points, a
-        glossary, flashcards, a quiz, and answers that cite the lecture.</p>
+        <code>.srt</code> or <code>.vtt</code> file<span id="audio-hint" hidden>, or a
+        lecture recording (<code>.mp3</code>, <code>.m4a</code>, <code>.wav</code>…)</span>.
+        You get an outline, key points, a glossary, flashcards, a quiz, and answers that cite
+        the lecture.</p>
       <form id="intake-form">
         <label class="field">
           <span>Title <span class="muted">(optional)</span></span>
@@ -43,6 +45,12 @@
       </form>
     </section>
 
+    <section id="recent" class="card" hidden>
+      <h2>Recent lectures</h2>
+      <p id="recent-note" class="muted small"></p>
+      <ul id="recent-list" class="recent"></ul>
+    </section>
+
     <section id="results" hidden>
       <div class="card hero">
         <div class="hero-head">
@@ -53,6 +61,7 @@
           <div class="actions">
             <a id="dl-md" class="button" download>Study guide (.md)</a>
             <a id="dl-csv" class="button" download>Flashcards (.csv)</a>
+            <a id="dl-vtt" class="button" download hidden>Transcript (.vtt)</a>
             <button id="new" type="button">New lecture</button>
           </div>
         </div>

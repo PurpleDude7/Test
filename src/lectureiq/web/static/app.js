@@ -33,7 +33,8 @@ async function api(path, options = {}) {
   return body;
 }
 
-const state = { lecture: null, cards: [], cardIndex: 0, flipped: false };
+const state = { lecture: null, cards: [], cardIndex: 0, flipped: false, audio: false, dropLabel: "" };
+const AUDIO_EXT = /\.(flac|m4a|mp3|mp4|mpeg|mpga|oga|ogg|wav|webm)$/i;
 
 // ---------- intake ----------
 
@@ -43,12 +44,13 @@ function setBusy(busy) {
   for (const id of ["#analyze", "#sample"]) $(id).disabled = busy;
 }
 
-async function submit(promise) {
+async function submit(promise, message = "Analyzing… this can take a minute with an LLM engine.") {
   setBusy(true);
-  status("Analyzing… this can take a minute with an LLM engine.");
+  status(message);
   try {
     show(await promise);
     status("");
+    loadRecent();
   } catch (err) {
     status(err.message);
   } finally {
@@ -75,7 +77,13 @@ function uploadFile(file) {
   form.append("file", file);
   form.append("title", $("#title").value.trim());
   $("#drop-label").textContent = file.name;
-  submit(api("/api/lectures", { method: "POST", body: form }));
+  const audio = AUDIO_EXT.test(file.name);
+  if (audio && !state.audio) {
+    status("This server doesn't transcribe audio; start it with --transcribe.");
+    return;
+  }
+  submit(api("/api/lectures", { method: "POST", body: form }),
+    audio ? "Transcribing and analyzing… long recordings take a few minutes." : undefined);
 }
 
 const drop = $("#drop");
@@ -90,9 +98,14 @@ drop.addEventListener("drop", (e) => {
   uploadFile(e.dataTransfer.files[0]);
 });
 
+const DROP_LABEL = $("#drop-label").textContent;
+
 $("#new").addEventListener("click", () => {
   $("#results").hidden = true;
   $("#intake").hidden = false;
+  $("#file").value = "";
+  $("#drop-label").textContent = state.dropLabel || DROP_LABEL;
+  loadRecent();
   history.replaceState(null, "", location.pathname);
   $("#text").focus();
 });
@@ -113,6 +126,9 @@ function chunkStart(chunkId) {
   return chunk ? chunk.start : null;
 }
 
+// Items carry their own time when the engine knows the exact sentence; else the chunk's.
+const itemStart = (item) => (item.start != null ? item.start : chunkStart(item.chunk_id));
+
 function show(lecture) {
   state.lecture = lecture;
   const pack = lecture.pack;
@@ -130,6 +146,9 @@ function show(lecture) {
   $("#tldr").textContent = pack.tldr;
   $("#dl-md").href = `/api/lectures/${lecture.id}/export.md`;
   $("#dl-csv").href = `/api/lectures/${lecture.id}/flashcards.csv`;
+  $("#dl-vtt").href = `/api/lectures/${lecture.id}/transcript.vtt`;
+  $("#dl-vtt").hidden = !lecture.has_timestamps;
+  $("#recent").hidden = true;
 
   const warnings = $("#warnings");
   warnings.replaceChildren(...pack.warnings.map((w) => h("li", {}, w)));
@@ -141,10 +160,10 @@ function show(lecture) {
       h("div", { class: "muted" }, s.summary))));
 
   $("#points").replaceChildren(...pack.key_points.map((p) =>
-    h("li", {}, p.text, tsButton(p.chunk_id, chunkStart(p.chunk_id)))));
+    h("li", {}, p.text, tsButton(p.chunk_id, itemStart(p)))));
 
   $("#glossary").replaceChildren(...pack.terms.flatMap((t) => [
-    h("dt", {}, t.term, tsButton(t.chunk_id, chunkStart(t.chunk_id))),
+    h("dt", {}, t.term, tsButton(t.chunk_id, itemStart(t))),
     h("dd", {}, t.definition),
   ]));
   if (!pack.terms.length) $("#glossary").replaceChildren(h("p", { class: "muted" }, "No glossary terms found."));
@@ -238,7 +257,7 @@ function renderQuiz() {
             h("input", { type: "radio", name: `q${qi}`, value: String(oi) }),
             h("span", {}, opt))),
         h("p", { class: "explanation", hidden: true },
-          q.explanation, tsButton(q.chunk_id, chunkStart(q.chunk_id)))))));
+          q.explanation, tsButton(q.chunk_id, itemStart(q)))))));
 }
 
 $("#quiz-check").addEventListener("click", () => {
@@ -303,17 +322,60 @@ function jumpTo(chunkId) {
   setTimeout(() => el.classList.remove("flash"), 1600);
 }
 
+// ---------- recent lectures ----------
+
+async function loadRecent() {
+  let items = [];
+  try { items = await api("/api/lectures"); } catch { /* list is optional */ }
+  const section = $("#recent");
+  section.hidden = items.length === 0 || !$("#results").hidden;
+  $("#recent-list").replaceChildren(...items.map((item) => {
+    const when = new Date(item.created_at).toLocaleString();
+    const row = h("li", {},
+      h("div", {},
+        h("button", { class: "open", type: "button", onclick: () => openLecture(item.id) }, item.title),
+        h("div", { class: "meta" }, `${when} · ${item.word_count.toLocaleString()} words · ${item.engine}`)),
+      h("button", {
+        class: "delete", type: "button", title: `Delete “${item.title}”`,
+        onclick: async () => {
+          if (!confirm(`Delete “${item.title}”?`)) return;
+          try {
+            await fetch(`/api/lectures/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+          } finally {
+            loadRecent();
+          }
+        },
+      }, "Delete"));
+    return row;
+  }));
+}
+
+async function openLecture(id) {
+  try { show(await api(`/api/lectures/${encodeURIComponent(id)}`)); } catch (err) { status(err.message); }
+}
+
 // ---------- boot ----------
 
 (async () => {
   try {
     const health = await api("/api/health");
     $("#engine").textContent = health.model ? `${health.engine} · ${health.model}` : `${health.engine} engine`;
+    state.audio = health.audio;
+    if (health.audio) {
+      $("#file").accept += ",audio/*,.mp3,.m4a,.wav,.webm,.ogg,.oga,.flac,.mp4,.mpeg,.mpga";
+      state.dropLabel = "Drop a transcript or recording here, or click to browse";
+      $("#drop-label").textContent = state.dropLabel;
+      $("#audio-hint").hidden = false;
+    }
+    $("#recent-note").textContent = health.persistent
+      ? "Saved on this server."
+      : "Kept in memory; restarting the server clears them (use --db to keep them).";
   } catch {
     $("#engine").textContent = "server unreachable";
   }
   const id = location.hash.slice(1);
   if (id) {
-    try { show(await api(`/api/lectures/${encodeURIComponent(id)}`)); } catch { /* expired */ }
+    try { show(await api(`/api/lectures/${encodeURIComponent(id)}`)); return; } catch { /* gone */ }
   }
+  loadRecent();
 })();

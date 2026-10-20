@@ -13,3 +13,7 @@ class TranscriptError(LectureIQError):
 
 class GenerationError(LectureIQError):
     """The model's output could not be turned into study material."""
+
+
+class TranscriptionError(LectureIQError):
+    """Speech-to-text failed (no API key, HTTP error, unexpected response)."""
