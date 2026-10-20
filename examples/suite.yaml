@@ -1,0 +1,87 @@
+# Example evalkit suite. Runs fully offline with the fake provider:
+#   evalkit run examples/suite.yaml --provider fake --report out.html
+# and against a real model with, e.g.:
+#   ANTHROPIC_API_KEY=... evalkit run examples/suite.yaml --provider anthropic
+name: geography-and-format
+description: Small smoke-test suite showing every built-in scorer.
+threshold: 0.8 # CI gate: fail the run if fewer than 80% of cases pass
+
+provider: fake # default when --provider is not given
+
+providers:
+  fake:
+    # Canned replies keyed by a substring of the prompt (first match wins).
+    responses:
+      capital of France: Paris
+      capital of Japan: The capital of Japan is Tokyo.
+      ISO date: "2024-03-01"
+      photosynthesis: >-
+        Plants use sunlight, water and carbon dioxide to make glucose and release oxygen.
+      haiku: |-
+        Autumn moonlight—
+        a worm digs silently
+        into the chestnut.
+  openai:
+    model: gpt-4o-mini
+  anthropic:
+    model: claude-opus-5-5
+  # A named alias: `type` picks the provider, the rest is its config. Scorers and
+  # --provider can refer to it by name. Point it at a real model for real grading,
+  # e.g. {type: anthropic, model: claude-opus-5-5}.
+  judge:
+    type: fake
+    default: '{"score": 5, "reasoning": "Meets the criteria."}'
+
+defaults:
+  system: You are a concise assistant. Answer as briefly as possible.
+  temperature: 0
+  max_tokens: 200
+  scorers:
+    - type: exact_match
+      case_sensitive: false
+
+cases:
+  - id: capital-france
+    input: What is the capital of France? Answer with one word.
+    expected: Paris
+    tags: [geography]
+
+  - id: capital-japan
+    input: What is the capital of Japan?
+    expected: Tokyo
+    tags: [geography]
+    scorers:
+      - type: contains # passes if the answer mentions Tokyo anywhere
+      - type: contains
+        value: [Kyoto, Osaka]
+        mode: any
+        negate: true
+
+  - id: iso-date
+    input: Write March 1st, 2024 as an ISO date. Reply with the date only.
+    tags: [format]
+    scorers:
+      - type: regex
+        pattern: '\d{4}-\d{2}-\d{2}'
+        fullmatch: true
+
+  - id: photosynthesis
+    input: In one sentence, what does photosynthesis produce?
+    expected: Photosynthesis uses sunlight, water and carbon dioxide to produce glucose and oxygen.
+    tags: [science]
+    scorers:
+      - type: embedding_similarity
+        threshold: 0.5
+      - type: llm_judge
+        criteria: Mentions both glucose (or sugar) and oxygen, and is factually correct.
+        provider: judge # omit to let the provider under test grade itself
+
+  - id: haiku
+    input: Write a haiku about autumn.
+    tags: [creative]
+    scorers:
+      - type: regex
+        pattern: '^[^\n]+\n[^\n]+\n[^\n]+$'
+      - type: llm_judge
+        criteria: Is a three-line haiku about autumn.
+        provider: judge
